@@ -198,6 +198,25 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 }
 #pause-btn:hover{transform:scale(1.06);border-color:var(--cyan);}
 
+/* Active-ability button — bottom-right corner (clear of the play area), with a cooldown sweep */
+#ability-btn{
+  position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));
+  z-index:3;display:none;align-items:center;justify-content:center;
+  width:62px;height:62px;border-radius:50%;cursor:pointer;pointer-events:auto;
+  color:var(--text);font-size:25px;
+  background:
+    conic-gradient(rgba(33,230,255,.85) var(--cd,0deg), rgba(33,230,255,.12) 0) border-box,
+    radial-gradient(circle at 50% 40%, rgba(20,28,56,.95), rgba(8,12,28,.95)) padding-box;
+  border:3px solid transparent;
+  box-shadow:0 8px 26px rgba(0,0,0,.5);
+  transition:transform .12s, box-shadow .25s;
+}
+#ability-btn:active{transform:scale(.93);}
+#ability-btn.ready{box-shadow:0 0 0 2px rgba(33,230,255,.5),0 0 22px rgba(33,230,255,.55);}
+#ability-btn.armed{box-shadow:0 0 0 2px var(--amber),0 0 26px rgba(255,207,77,.7);animation:abArm .7s ease-in-out infinite;}
+@keyframes abArm{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.ab-icon{filter:drop-shadow(0 0 6px rgba(33,230,255,.6));}
+
 /* ---------- 6. Overlays ---------- */
 #countdown{
   position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;pointer-events:none;
@@ -221,6 +240,38 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 .win-name{font-size:clamp(30px,6vw,46px);font-weight:800;letter-spacing:2px;margin:4px 0;}
 .win-score{font-size:40px;font-weight:800;letter-spacing:6px;margin:8px 0 4px;font-variant-numeric:tabular-nums;}
 .win-best{color:var(--muted);font-size:13px;letter-spacing:2px;margin-bottom:18px;}
+.win-ranked{color:var(--cyan);font-size:15px;font-weight:700;letter-spacing:1px;margin:6px 0;text-shadow:0 0 14px rgba(33,230,255,.4);}
+.win-unlocks{color:var(--amber);font-size:14px;letter-spacing:1px;line-height:1.5;margin:10px auto;padding:10px 14px;
+  max-width:90%;border:1px solid rgba(255,207,77,.4);border-radius:12px;background:rgba(255,207,77,.08);}
+.win-unlocks b{color:#fff;}
+
+/* Ranked screen */
+.rank-badge{font-size:34px;font-weight:800;letter-spacing:4px;margin:4px 0 2px;
+  background:linear-gradient(90deg,var(--cyan),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 16px rgba(255,207,77,.4));}
+.rank-mmr{color:var(--muted);font-size:14px;letter-spacing:2px;margin-bottom:14px;}
+.rank-bar{height:12px;border-radius:8px;background:rgba(10,16,34,.8);border:1px solid var(--glass-brd);overflow:hidden;margin:0 auto;max-width:360px;}
+.rank-bar-fill{height:100%;width:0%;border-radius:8px;background:linear-gradient(90deg,var(--cyan),var(--magenta));transition:width .6s cubic-bezier(.2,.9,.25,1);}
+.rank-next{font-size:12px;letter-spacing:2px;color:var(--muted);margin-top:8px;}
+.rank-record{font-size:13px;letter-spacing:1px;color:var(--text);margin-top:6px;}
+
+/* Locker */
+.locker-hint{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 14px;}
+.locker-group{text-align:left;margin-bottom:16px;}
+.locker-group h4{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin:0 0 10px;border-bottom:1px solid rgba(120,170,255,.12);padding-bottom:6px;}
+.skill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+.skill-card{position:relative;display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border-radius:12px;cursor:pointer;
+  background:rgba(255,255,255,.03);border:1px solid var(--glass-brd);transition:border-color .2s, transform .12s, background .2s;}
+.skill-card:hover{transform:translateY(-2px);border-color:var(--cyan);}
+.skill-card.locked{opacity:.6;cursor:default;}
+.skill-card.locked:hover{transform:none;border-color:var(--glass-brd);}
+.skill-card.equipped{border-color:var(--green);box-shadow:0 0 0 1px var(--green),0 6px 20px rgba(61,255,158,.2);background:rgba(61,255,158,.06);}
+.skill-ico{font-size:22px;line-height:1;flex:none;width:30px;text-align:center;filter:drop-shadow(0 0 6px rgba(33,230,255,.5));}
+.skill-meta{flex:1;min-width:0;}
+.skill-name{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--text);}
+.skill-desc{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px;}
+.skill-lock{font-size:10.5px;color:var(--amber);margin-top:4px;letter-spacing:.4px;}
+.skill-tag{position:absolute;top:8px;right:8px;font-size:9px;letter-spacing:1px;color:var(--green);font-weight:700;}
 
 /* ---------- 7. Animations ---------- */
 @keyframes scorePop{0%{transform:scale(1)}35%{transform:scale(1.5)}100%{transform:scale(1)}}
@@ -285,6 +336,9 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
   <div class="score-card p2"><span class="score-name" id="p2-name">CPU</span><span class="score-val" id="p2-score">0</span></div>
 </div>
 
+<!-- Active-ability button (shown only when an active skill is equipped) -->
+<div id="ability-btn" title="Use ability (Space)"><span class="ab-icon">»</span></div>
+
 <!-- ===================== COUNTDOWN ===================== -->
 <div id="countdown"><div class="cd-num" id="cd-num">3</div></div>
 <div class="toast" id="toast"></div>
@@ -298,8 +352,10 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
     <div class="subtitle">Air Hockey Arena</div>
     <div class="stack">
       <button class="btn primary" data-go="mode">▶ PLAY</button>
-      <button class="btn" data-go="settings">⚙ SETTINGS</button>
-      <button class="btn ghost" data-go="instructions">❔ INSTRUCTIONS</button>
+      <button class="btn magenta" id="main-ranked">🏆 RANKED</button>
+      <button class="btn" id="main-skills">⚡ SKILLS</button>
+      <button class="btn ghost small" data-go="settings">⚙ SETTINGS</button>
+      <button class="btn ghost small" data-go="instructions">❔ INSTRUCTIONS</button>
     </div>
     <div class="credit" id="main-record">Best of 7 • Pure HTML / CSS / JS</div>
   </div>
@@ -326,6 +382,38 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <button class="btn" data-diff="medium">MEDIUM<span class="sub">Balanced & predictive</span></button>
       <button class="btn" data-diff="hard">HARD<span class="sub">Fast, sharp prediction</span></button>
       <button class="btn ghost small" data-go="mode">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ranked -->
+<div class="screen" id="screen-ranked">
+  <div class="panel">
+    <h2 class="section-head">Ranked Ladder</h2>
+    <div id="rank-badge" class="rank-badge">BRONZE</div>
+    <div id="rank-mmr" class="rank-mmr">1000 MMR</div>
+    <div class="rank-bar"><div id="rank-bar-fill" class="rank-bar-fill"></div></div>
+    <div id="rank-next" class="rank-next"></div>
+    <div id="rank-record" class="rank-record"></div>
+    <p class="doc" style="text-align:center;margin:14px 0 4px;">
+      Win to climb tiers (Bronze → Master). The AI scales with your rank, and your
+      equipped skills are active. Win/loss swing depends on the score margin.</p>
+    <div class="stack" style="margin-top:14px;">
+      <button class="btn primary" id="ranked-play">▶ PLAY RANKED</button>
+      <button class="btn" id="ranked-skills">⚡ EDIT LOADOUT</button>
+      <button class="btn ghost small" data-go="main">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Skills / Locker -->
+<div class="screen" id="screen-locker">
+  <div class="panel" style="width:min(680px,96vw);">
+    <h2 class="section-head">Skills &amp; Locker</h2>
+    <p class="locker-hint">Equip <b>1 active</b> ability, up to <b>2 passives</b>, plus a paddle skin &amp; trail. Locked items show their challenge.</p>
+    <div id="locker-body"></div>
+    <div class="stack" style="margin-top:16px;">
+      <button class="btn ghost small" id="locker-back">← BACK</button>
     </div>
   </div>
 </div>
@@ -386,6 +474,11 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <b>Easy</b> — slow paddle, delayed reactions, loose aim.<br>
       <b>Medium</b> — balanced speed with moderate puck prediction.<br>
       <b>Hard</b> — fast reactions and advanced trajectory prediction.
+      <h3>Ranked</h3>
+      Climb an MMR ladder from <b>Bronze → Master</b>. Win to gain rating, lose to drop; the swing scales with the score margin and the AI gets tougher as you rise.
+      <h3>Skills &amp; Challenges</h3>
+      Unlock abilities by completing in-match <b>challenges</b> (shown in the Skills locker). Equip <b>1 active</b> ability, up to <b>2 passive</b> boosts, plus a paddle skin and trail.
+      Trigger your active ability with <span class="key">Space</span> / <span class="key">E</span> or the on-screen button. Skills are active in Single Player and Ranked.
     </div>
     <div class="stack" style="margin-top:20px;">
       <button class="btn ghost small" data-go="main">← BACK</button>
@@ -412,6 +505,8 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
     <div class="trophy">🏆</div>
     <div class="win-name" id="win-name">You Win!</div>
     <div class="win-score" id="win-score">7 — 0</div>
+    <div class="win-ranked" id="win-ranked" style="display:none"></div>
+    <div class="win-unlocks" id="win-unlocks" style="display:none"></div>
     <div class="win-best" id="win-best"></div>
     <div class="stack">
       <button class="btn primary" id="win-again">▶ PLAY AGAIN</button>
@@ -445,7 +540,17 @@ const Storage = (() => {
     difficulty: "medium",
     mode: "single",
     bestWins: 0,
-    bestStreak: 0
+    bestStreak: 0,
+    // ----- progression / ranked / skills -----
+    mmr: 850,             // hidden rating, maps to a tier (starts low in Bronze)
+    peakMmr: 850,         // highest reached (for tier-based unlocks)
+    rankWins: 0,
+    rankLosses: 0,
+    totalWins: 0,         // cumulative casual+ranked wins
+    totalGoals: 0,        // cumulative goals scored by the player
+    unlocked: ["dash","skin_default","trail_default"],  // owned skills; starters seeded
+                          //  so the locker is never empty and defaults aren't "re-unlocked"
+    loadout: { active:"dash", passives:[], paddle:"skin_default", trail:"trail_default" }
   };
   let data = {...defaults};
   try {
@@ -458,6 +563,155 @@ const Storage = (() => {
     set:(k,v)=>{ data[k]=v; save(); },
     all:()=>data
   };
+})();
+
+/* ----------------------------------------------------------------------
+   PROGRESSION — ranked tiers (MMR/ELO), skills & challenge unlocks
+---------------------------------------------------------------------- */
+const Progression = (() => {
+  // ---- Tiers (rating bands) ----
+  const TIERS = [
+    { name:"BRONZE",   min:800,  color:"#cd7f32" },
+    { name:"SILVER",   min:1000, color:"#c8d4e3" },
+    { name:"GOLD",     min:1200, color:"#ffcf4d" },
+    { name:"PLATINUM", min:1400, color:"#3dffd0" },
+    { name:"DIAMOND",  min:1600, color:"#7cc6ff" },
+    { name:"MASTER",   min:1800, color:"#ff5ce0" }
+  ];
+  function tierIndexFor(mmr){
+    let idx=0;
+    for (let i=0;i<TIERS.length;i++) if (mmr>=TIERS[i].min) idx=i;
+    return idx;
+  }
+  function tierFor(mmr){ return TIERS[tierIndexFor(mmr)]; }
+  // progress (0..1) toward the next tier; 1 at the top tier
+  function tierProgress(mmr){
+    const i=tierIndexFor(mmr);
+    if (i>=TIERS.length-1) return 1;
+    const lo=TIERS[i].min, hi=TIERS[i+1].min;
+    return Math.max(0,Math.min(1,(mmr-lo)/(hi-lo)));
+  }
+  // Ranked AI difficulty scales with the player's tier
+  // Bronze: easy · Silver/Gold: medium · Platinum+: hard
+  function aiForTier(i){
+    if (i<=0) return "easy";
+    if (i<=2) return "medium";
+    return "hard";
+  }
+
+  // ---- ELO update. The AI is treated as an even-rated opponent (the ladder's
+  //      difficulty comes from the AI scaling tougher each tier, which lowers your
+  //      win-rate as you climb). The score margin scales the size of the swing. ----
+  function eloUpdate(mmr, won, myScore, oppScore){
+    const E = 0.5;                                   // even match
+    const K = 32;
+    const margin = 1 + Math.min(0.6,(Math.abs(myScore-oppScore)-1)/12);
+    let delta = Math.round(K*margin*((won?1:0)-E));
+    if (won && delta<8) delta=8;                     // always feel a win
+    if (!won && delta>-8) delta=-8;                  // always feel a loss
+    return delta;
+  }
+
+  // ---- Skills registry ----
+  // type: active | passive | paddle | trail
+  // challenge: human-readable unlock condition
+  // check(ctx): returns true when the unlock condition is met
+  const SKILLS = [
+    // --- Active abilities (equip 1) ---
+    { id:"dash", type:"active", name:"Dash", icon:"»",
+      desc:"Brief burst of paddle power & speed for a stronger hit.",
+      challenge:"Starter ability — ready from the start.",
+      check:()=>true },
+    { id:"powershot", type:"active", name:"Power Shot", icon:"⚡",
+      desc:"Arm it, then your next paddle hit launches the puck at huge speed.",
+      challenge:"Score a goal with a fast shot (puck over 850 speed).",
+      check:c=>c.fastGoalScored },
+    { id:"shield", type:"active", name:"Shield", icon:"⛨",
+      desc:"Raise a temporary wall across your goal for a few seconds.",
+      challenge:"Win a match without conceding (shutout).",
+      check:c=>c.win && c.oppScore===0 },
+    { id:"freeze", type:"active", name:"Freeze", icon:"❄",
+      desc:"Briefly slow the puck so you can reposition.",
+      challenge:"Win a ranked match.",
+      check:c=>c.win && c.ranked },
+    // --- Passive boosts (equip up to 2) ---
+    { id:"bigpaddle", type:"passive", name:"Big Paddle", icon:"◯",
+      desc:"+18% paddle size — easier to defend and connect.",
+      challenge:"Win a match conceding 2 goals or fewer.",
+      check:c=>c.win && c.oppScore<=2 },
+    { id:"swift", type:"passive", name:"Swift", icon:"➤",
+      desc:"+ movement responsiveness and keyboard speed.",
+      challenge:"Win 3 matches total.",
+      check:c=>c.totalWins>=3 },
+    { id:"powerhits", type:"passive", name:"Power Hits", icon:"✸",
+      desc:"+30% hit force on every paddle strike.",
+      challenge:"Land a hit at 1100+ puck speed.",
+      check:c=>c.maxHitSpeed>=1100 },
+    { id:"control", type:"passive", name:"Control", icon:"✛",
+      desc:"Your hits curve slightly toward the opponent's goal.",
+      challenge:"Win after trailing by 3 or more goals (comeback).",
+      check:c=>c.win && c.comeback },
+    // --- Cosmetic paddle skins ---
+    { id:"skin_default", type:"paddle", name:"Cyan (default)", icon:"●", color:"#21e6ff",
+      desc:"The classic neon-cyan striker.", challenge:"Available from the start.", check:()=>true },
+    { id:"skin_plasma", type:"paddle", name:"Plasma", icon:"●", color:"#ff2bd6",
+      desc:"Hot magenta plasma finish.", challenge:"Reach Silver tier.",
+      check:c=>c.peakTier>=1 },
+    { id:"skin_gold", type:"paddle", name:"Gold", icon:"●", color:"#ffcf4d",
+      desc:"Champion's gold plating.", challenge:"Reach Gold tier.",
+      check:c=>c.peakTier>=2 },
+    { id:"skin_emerald", type:"paddle", name:"Emerald", icon:"●", color:"#3dff9e",
+      desc:"Cool emerald glow.", challenge:"Win 10 matches total.",
+      check:c=>c.totalWins>=10 },
+    // --- Cosmetic puck trails ---
+    { id:"trail_default", type:"trail", name:"Ice (default)", icon:"≈", color:"#9fe9ff",
+      desc:"Standard frosty trail.", challenge:"Available from the start.", check:()=>true },
+    { id:"trail_comet", type:"trail", name:"Comet", icon:"≈", color:"#ffae3d",
+      desc:"Fiery comet streak.", challenge:"Score 25 goals total.",
+      check:c=>c.totalGoals>=25 },
+    { id:"trail_rainbow", type:"trail", name:"Spectrum", icon:"≈", color:"rainbow",
+      desc:"Shifting rainbow trail.", challenge:"Reach Platinum tier.",
+      check:c=>c.peakTier>=3 }
+  ];
+  const byId = {};
+  SKILLS.forEach(s=>byId[s.id]=s);
+
+  function isUnlocked(id){ return (Storage.get("unlocked")||[]).includes(id); }
+  function unlock(id){
+    const u=Storage.get("unlocked")||[];
+    if (!u.includes(id)){ u.push(id); Storage.set("unlocked",[...u]); }
+  }
+  function get(id){ return byId[id]; }
+  function list(type){ return SKILLS.filter(s=>s.type===type); }
+
+  // Evaluate all locked skills against a finished-match context, unlock any newly
+  // satisfied ones, and return their definitions (for the "Unlocked!" announcement).
+  function evaluateUnlocks(ctx){
+    ctx.peakTier = tierIndexFor(Storage.get("peakMmr"));
+    ctx.totalWins = Storage.get("totalWins");
+    ctx.totalGoals = Storage.get("totalGoals");
+    const newly=[];
+    for (const s of SKILLS){
+      if (!isUnlocked(s.id) && s.check(ctx)){ unlock(s.id); newly.push(s); }
+    }
+    return newly;
+  }
+
+  // ---- Loadout helpers ----
+  function loadout(){ return Storage.get("loadout"); }
+  function saveLoadout(l){ Storage.set("loadout", {...l}); }
+  function equipActive(id){ const l=loadout(); l.active = (l.active===id?null:id); saveLoadout(l); }
+  function equipPassive(id){
+    const l=loadout(); const p=new Set(l.passives||[]);
+    if (p.has(id)) p.delete(id);
+    else { if (p.size>=2){ return false; } p.add(id); }      // cap at 2 passives
+    l.passives=[...p]; saveLoadout(l); return true;
+  }
+  function equipCosmetic(type,id){ const l=loadout(); l[type]=id; saveLoadout(l); }
+
+  return { TIERS, tierIndexFor, tierFor, tierProgress, aiForTier, eloUpdate,
+           SKILLS, isUnlocked, unlock, get, list, evaluateUnlocks,
+           loadout, equipActive, equipPassive, equipCosmetic };
 })();
 
 /* ----------------------------------------------------------------------
@@ -511,7 +765,9 @@ const Audio = (() => {
     goal:()=>{ tone(523,0.16,"sawtooth",0.4,784); setTimeout(()=>tone(659,0.2,"sawtooth",0.4,988),90); noise(0.25,0.3,400); },
     count:(last=false)=>{ tone(last?880:440, last?0.3:0.14, "square", 0.4); },
     victory:()=>{ const seq=[523,659,784,1046]; seq.forEach((f,i)=>setTimeout(()=>tone(f,0.4,"sawtooth",0.4),i*150)); },
-    click:()=>{ tone(660,0.05,"square",0.25); }
+    click:()=>{ tone(660,0.05,"square",0.25); },
+    ability:()=>{ tone(420,0.18,"sawtooth",0.35,880); noise(0.08,0.18,1400); },
+    unlock:()=>{ tone(659,0.16,"triangle",0.4,988); setTimeout(()=>tone(988,0.25,"triangle",0.4,1318),120); }
   };
 })();
 
@@ -592,20 +848,34 @@ const Game = (() => {
   // ---- Entities ----
   const WALL = 14;                    // wall thickness inset
   const GOAL_W = 230;                 // goal opening width
+  const BASE_PR = 38;                 // base paddle radius
+  // per-paddle modifiers: hitForce (momentum injection), restitution, aimAssist (control passive)
   const puck = { x:FW/2, y:FH/2, vx:0, vy:0, r:18, trail:[] };
-  const p1 = { x:FW/2, y:FH-120, px:FW/2, py:FH-120, vx:0, vy:0, r:38, color:"#21e6ff" }; // bottom (human)
-  const p2 = { x:FW/2, y:120,    px:FW/2, py:120,    vx:0, vy:0, r:38, color:"#ff2bd6" }; // top (AI / P2)
+  const p1 = { x:FW/2, y:FH-120, px:FW/2, py:FH-120, vx:0, vy:0, r:BASE_PR, color:"#21e6ff",
+               hitForce:0.34, restitution:1.05, aimAssist:0 }; // bottom (human)
+  const p2 = { x:FW/2, y:120,    px:FW/2, py:120,    vx:0, vy:0, r:BASE_PR, color:"#ff2bd6",
+               hitForce:0.34, restitution:1.05, aimAssist:0 }; // top (AI / P2)
 
   // ---- State ----
   let state = "menu";   // menu | countdown | play | paused | goal | victory
   let mode = "single";  // single | multi
   let difficulty = "medium";
+  let ranked = false;   // ranked match? (affects MMR + AI scaling)
+  let skillsOn = false; // whether P1's loadout is active this match
   let scores = { p1:0, p2:0 };
   const WIN_SCORE = 7;
   let matchStart = 0, matchElapsed = 0;
   let shake = 0;
   let lastServe = "p1"; // who concedes serves to the other
   const particles = new ParticleSystem();
+
+  // ---- Skills: active-ability + cosmetic runtime state ----
+  const CD_MAX = { dash:6, powershot:8, shield:10, freeze:9 };
+  const ability = { id:null, cd:0, cdMax:0, armed:false, dashT:0, freezeT:0 };
+  const shield = { active:false, t:0, max:3 };
+  let trailStyle = { color:"#9fe9ff", rainbow:false };
+  // per-match challenge stats
+  let matchStats = { maxHitSpeed:0, fastGoalScored:false, maxDeficit:0 };
 
   // ---- AI tuning per difficulty ----
   const AI = {
@@ -650,15 +920,26 @@ const Game = (() => {
   }
 
   // ---------- Match / round control ----------
-  function startMatch(m, diff){
-    mode = m; difficulty = diff||Storage.get("difficulty");
+  function startMatch(m, diff, opts={}){
+    mode = m;
+    ranked = !!opts.ranked;
+    // Ranked is always single-player vs an AI scaled to the player's tier
+    if (ranked){
+      const ti = Progression.tierIndexFor(Storage.get("mmr"));
+      difficulty = Progression.aiForTier(ti);
+    } else {
+      difficulty = diff||Storage.get("difficulty");
+    }
     scores.p1 = 0; scores.p2 = 0;
     matchStart = performance.now(); matchElapsed = 0;
     lastServe = "p1";
+    matchStats = { maxHitSpeed:0, fastGoalScored:false, maxDeficit:0 };
+    applyLoadout();
     document.getElementById("p1-name").textContent = "P1";
     document.getElementById("p2-name").textContent = mode==="single" ? "CPU" : "P2";
     document.getElementById("mode-label").textContent =
-      mode==="single" ? "SINGLE • "+difficulty.toUpperCase() : "MULTIPLAYER";
+      ranked ? "RANKED • "+Progression.tierFor(Storage.get("mmr")).name
+             : (mode==="single" ? "SINGLE • "+difficulty.toUpperCase() : "MULTIPLAYER");
     updateScoreUI();
     document.getElementById("hud").style.display = "flex";
     document.getElementById("game-wrap").style.display = "flex";
@@ -666,6 +947,38 @@ const Game = (() => {
     resize();
     resetPositions();
     beginCountdown();
+  }
+
+  // Apply the player's equipped loadout (passives, active, cosmetics) to P1.
+  // Skills are enabled in single & ranked; multiplayer stays clean/default.
+  function applyLoadout(){
+    skillsOn = (mode==="single");
+    // reset both paddles to defaults
+    p1.r=BASE_PR; p1.hitForce=0.34; p1.restitution=1.05; p1.aimAssist=0; p1.color="#21e6ff"; p1.swift=false;
+    p2.r=BASE_PR; p2.hitForce=0.34; p2.restitution=1.05; p2.aimAssist=0; p2.color="#ff2bd6";
+    trailStyle={ color:"#9fe9ff", rainbow:false };
+    ability.id=null; ability.cd=0; ability.armed=false; ability.dashT=0; ability.freezeT=0;
+    shield.active=false; shield.t=0;
+    if (!skillsOn) return;
+    const lo = Progression.loadout();
+    const has = id => Progression.isUnlocked(id) && (lo.passives||[]).includes(id);
+    if (has("bigpaddle")) p1.r = BASE_PR*1.18;
+    if (has("swift"))     p1.swift = true;
+    if (has("powerhits")) p1.hitForce = 0.34*1.30;
+    if (has("control")){  p1.aimAssist = 0.10; }
+    // active ability
+    if (lo.active && Progression.isUnlocked(lo.active)){
+      ability.id = lo.active; ability.cdMax = CD_MAX[lo.active]||7;
+    }
+    // cosmetics
+    const skin = Progression.get(lo.paddle);
+    if (skin && Progression.isUnlocked(skin.id)) p1.color = skin.color;
+    const tr = Progression.get(lo.trail);
+    if (tr && Progression.isUnlocked(tr.id)){
+      if (tr.color==="rainbow") trailStyle={ color:null, rainbow:true };
+      else trailStyle={ color:tr.color, rainbow:false };
+    }
+    updateAbilityHud();
   }
 
   function resetPositions(){
@@ -695,7 +1008,16 @@ const Game = (() => {
 
   function scoreGoal(scorer){
     if (state!=="play") return;
+    // challenge stats: record fast goals & cumulative goals for the player
+    if (scorer==="p1"){
+      const sp=Math.hypot(puck.vx,puck.vy);
+      if (sp>850) matchStats.fastGoalScored=true;
+      Storage.set("totalGoals",(Storage.get("totalGoals")||0)+1);
+    }
     scores[scorer]++;
+    // track the worst deficit the player faced (for the comeback challenge)
+    const deficit = scores.p2 - scores.p1;
+    if (deficit>matchStats.maxDeficit) matchStats.maxDeficit=deficit;
     Audio.goal();
     updateScoreUI();
     shake = Math.min(shake+18, 26);
@@ -718,22 +1040,59 @@ const Game = (() => {
     state = "victory";
     Audio.victory();
     document.getElementById("hud").style.display="none";
-    const youWon = (mode==="single" && winner==="p1") || (mode==="multi" && winner==="p1");
+    if (abilityBtn) abilityBtn.style.display="none";
+    const youWon = winner==="p1";
     const nameEl = document.getElementById("win-name");
-    if (mode==="single") nameEl.textContent = winner==="p1" ? "VICTORY!" : "DEFEAT";
+    if (mode==="single") nameEl.textContent = youWon ? "VICTORY!" : "DEFEAT";
     else nameEl.textContent = (winner==="p1"?"PLAYER 1":"PLAYER 2") + " WINS!";
     document.getElementById("win-score").textContent = `${scores.p1} — ${scores.p2}`;
-    // persist best record (single-player wins)
-    let bestNote = "";
-    if (mode==="single" && winner==="p1"){
-      const wins = Storage.get("bestWins")+1; Storage.set("bestWins", wins);
-      bestNote = `Total wins vs CPU: ${wins}`;
-    } else if (mode==="single"){
-      bestNote = `Total wins vs CPU: ${Storage.get("bestWins")}`;
-    } else {
-      bestNote = "Local Multiplayer";
+
+    // ----- persist cumulative + best records -----
+    if (youWon){
+      Storage.set("totalWins",(Storage.get("totalWins")||0)+1);
+      if (mode==="single") Storage.set("bestWins",(Storage.get("bestWins")||0)+1);
     }
-    document.getElementById("win-best").textContent = bestNote;
+
+    // ----- ranked: update MMR (ELO) and report the change -----
+    const rankedEl = document.getElementById("win-ranked");
+    if (ranked){
+      const beforeMmr = Storage.get("mmr");
+      const beforeTier = Progression.tierFor(beforeMmr).name;
+      const delta = Progression.eloUpdate(beforeMmr, youWon, scores.p1, scores.p2);
+      const after = Math.max(0, beforeMmr+delta);
+      Storage.set("mmr", after);
+      if (after>Storage.get("peakMmr")) Storage.set("peakMmr", after);
+      Storage.set(youWon?"rankWins":"rankLosses",(Storage.get(youWon?"rankWins":"rankLosses")||0)+1);
+      const afterTier = Progression.tierFor(after).name;
+      let line = `${delta>=0?"+":""}${delta} MMR · ${after} (${afterTier})`;
+      if (afterTier!==beforeTier) line += youWon ? ` · PROMOTED to ${afterTier}!` : ` · demoted to ${afterTier}`;
+      rankedEl.textContent = line;
+      rankedEl.style.display="block";
+    } else {
+      rankedEl.style.display="none";
+    }
+
+    // ----- evaluate challenge unlocks -----
+    const ctx = {
+      win: youWon, ranked,
+      myScore: scores.p1, oppScore: scores.p2,
+      maxHitSpeed: matchStats.maxHitSpeed,
+      fastGoalScored: matchStats.fastGoalScored,
+      comeback: youWon && matchStats.maxDeficit>=3
+    };
+    const newly = Progression.evaluateUnlocks(ctx);
+    const unlockEl = document.getElementById("win-unlocks");
+    if (newly.length){
+      Audio.unlock();
+      unlockEl.innerHTML = "🔓 UNLOCKED<br>" + newly.map(s=>`<b>${s.name}</b>`).join(" · ");
+      unlockEl.style.display="block";
+    } else {
+      unlockEl.style.display="none";
+    }
+
+    document.getElementById("win-best").textContent =
+      ranked ? `Ranked record: ${Storage.get("rankWins")}W / ${Storage.get("rankLosses")}L`
+             : (mode==="single" ? `Total wins: ${Storage.get("totalWins")}` : "Local Multiplayer");
     // celebration confetti loop runs in render via state
     confettiBurst();
     UI.show("victory");
@@ -796,23 +1155,45 @@ const Game = (() => {
     // separate puck out of paddle
     const overlap = minD - dist;
     puck.x += nx*overlap; puck.y += ny*overlap;
+    // skill modifiers (only meaningful for P1, defaults elsewhere)
+    const isP1 = pad===p1;
+    const dashing = isP1 && ability.dashT>0;
+    let restitution = pad.restitution * (dashing?1.15:1);
+    let force = pad.hitForce * (dashing?1.6:1);
     // relative velocity along normal
     const rvx = puck.vx - pad.vx, rvy = puck.vy - pad.vy;
     const velAlong = rvx*nx + rvy*ny;
     if (velAlong < 0){
-      const restitution = 1.05;     // slightly springy
       const j = -(1+restitution)*velAlong;
       puck.vx += j*nx; puck.vy += j*ny;
     }
     // inject paddle momentum (variable force from paddle velocity)
     const padSpeed = Math.hypot(pad.vx,pad.vy);
-    puck.vx += pad.vx*0.34; puck.vy += pad.vy*0.34;
+    puck.vx += pad.vx*force; puck.vy += pad.vy*force;
     // ensure puck moves away from paddle a little
-    const sp = Math.hypot(puck.vx,puck.vy);
+    let sp = Math.hypot(puck.vx,puck.vy);
     if (sp < 180){ puck.vx += nx*220; puck.vy += ny*220; }
+    // Power Shot: consume the armed charge to supercharge this hit
+    if (isP1 && ability.armed){
+      ability.armed=false;
+      puck.vx*=1.9; puck.vy*=1.9;
+      ability.cd = ability.cdMax;          // start cooldown once it actually fires
+      particles.emit(puck.x,puck.y,{count:26,speed:420,life:0.6,size:4,color:"#ffcf4d",angle:Math.atan2(ny,nx),spread:Math.PI});
+      shake=Math.min(shake+14,24);
+    }
+    // Control passive: curve the shot slightly toward the opponent's goal
+    if (isP1 && pad.aimAssist>0){
+      const tx=FW/2 - puck.x, ty=WALL - puck.y;      // toward top goal centre
+      const tl=Math.hypot(tx,ty)||1; sp=Math.hypot(puck.vx,puck.vy);
+      puck.vx += (tx/tl*sp - puck.vx)*pad.aimAssist;
+      puck.vy += (ty/tl*sp - puck.vy)*pad.aimAssist;
+    }
     capPuck();
+    // challenge tracking: fastest hit the player produced this match
+    sp=Math.hypot(puck.vx,puck.vy);
+    if (isP1 && sp>matchStats.maxHitSpeed) matchStats.maxHitSpeed=sp;
     // FX
-    const power = Math.min(1, (Math.hypot(puck.vx,puck.vy))/PUCK_MAX + padSpeed/PADDLE_MAX);
+    const power = Math.min(1, sp/PUCK_MAX + padSpeed/PADDLE_MAX);
     Audio.paddle(power);
     particles.emit(puck.x,puck.y,{count:14,speed:160+power*260,life:0.5,size:3.4,
       color:pad.color,angle:Math.atan2(ny,nx),spread:Math.PI*0.9});
@@ -828,16 +1209,19 @@ const Game = (() => {
 
   let flash = 0;
 
-  // Continuous-collision-ish stepping to avoid tunneling at high speed
-  function integratePuck(dt){
+  // Continuous-collision-ish stepping to avoid tunneling at high speed.
+  // moveScale<1 (Freeze ability) slows travel without draining stored velocity,
+  // so the puck speeds back up once the effect ends.
+  function integratePuck(dt, moveScale=1){
     const sp = Math.hypot(puck.vx,puck.vy);
     // sub-step so puck never moves more than ~ its radius per step
-    const steps = Math.max(1, Math.ceil(sp*dt/(puck.r*0.8)));
+    const steps = Math.max(1, Math.ceil(sp*dt*moveScale/(puck.r*0.8)));
     const sdt = dt/steps;
     for (let s=0;s<steps;s++){
-      puck.x += puck.vx*sdt;
-      puck.y += puck.vy*sdt;
+      puck.x += puck.vx*sdt*moveScale;
+      puck.y += puck.vy*sdt*moveScale;
       collideWalls();
+      collideShield();
       puckPaddle(p1);
       puckPaddle(p2);
     }
@@ -846,6 +1230,20 @@ const Game = (() => {
     puck.vx*=f; puck.vy*=f;
     if (Math.abs(puck.vx)<2) puck.vx=0;
     if (Math.abs(puck.vy)<2) puck.vy=0;
+  }
+
+  // Shield ability: a temporary barrier across P1's (bottom) goal mouth
+  const SHIELD_Y = FH - WALL - 64;
+  function collideShield(){
+    if (!shield.active) return;
+    const goalL=(FW-GOAL_W)/2-20, goalR=(FW+GOAL_W)/2+20;
+    if (puck.vy>0 && puck.y+puck.r>SHIELD_Y && puck.y<SHIELD_Y+24 && puck.x>goalL && puck.x<goalR){
+      puck.y = SHIELD_Y-puck.r;
+      puck.vy = -Math.abs(puck.vy)*1.02;
+      Audio.wall();
+      particles.emit(puck.x,SHIELD_Y,{count:12,speed:200,life:0.4,size:3,color:"#21e6ff",angle:-Math.PI/2,spread:Math.PI});
+      flash=Math.min(1,flash+0.3);
+    }
   }
 
   // QOL: if the puck sits nearly still for too long, gently nudge it back into
@@ -906,7 +1304,7 @@ const Game = (() => {
     if (usePtr){
       tx=ptr.x; ty=ptr.y;
     } else if (kbset){
-      const spd = 980*dt;
+      const spd = (pad.swift?1.2:1)*980*dt;
       let mx=0,my=0;
       if (keys[kbset.up]) my-=1;
       if (keys[kbset.down]) my+=1;
@@ -916,7 +1314,8 @@ const Game = (() => {
     }
     // smooth follow (prevents jitter, frame-rate independent).
     // Small time-constant => paddle tracks the pointer almost 1:1 for responsive control.
-    const follow = usePtr ? 1-Math.exp(-dt/0.010) : 1;
+    const tau = pad.swift ? 0.007 : 0.010;
+    const follow = usePtr ? 1-Math.exp(-dt/tau) : 1;
     pad.x += (tx-pad.x)*follow;
     pad.y += (ty-pad.y)*follow;
     clampPaddle(pad,isTop);
@@ -1022,12 +1421,16 @@ const Game = (() => {
     }
     else if (state==="play"){
       movePaddles(dt, speedScale, true);
-      // game speed scales the integration step so physics stay consistent
-      integratePuck(dt*speedScale);
+      updateAbilities(dt);
+      // game speed scales the integration step so physics stay consistent.
+      // Freeze ability slows puck travel via moveScale.
+      const moveScale = ability.freezeT>0 ? 0.35 : 1;
+      integratePuck(dt*speedScale, moveScale);
       rescueStuckPuck(dt, speedScale);
     }
     else if (state==="goal"){
       movePaddles(dt, speedScale, false);
+      updateAbilities(dt);
     }
     // decay effects
     if (shake>0) shake=Math.max(0, shake-shake*6*dt-0.1);
@@ -1057,6 +1460,46 @@ const Game = (() => {
     }
   }
 
+  // ---------- Active abilities ----------
+  // Trigger the equipped active ability for P1 (keyboard or on-screen button).
+  function useAbility(){
+    if (!skillsOn || !ability.id || ability.cd>0) return;
+    if (state!=="play" && state!=="goal") return;
+    Audio.ability();
+    switch(ability.id){
+      case "dash":   ability.dashT=1.2; ability.cd=ability.cdMax;
+        particles.emit(p1.x,p1.y,{count:18,speed:260,life:0.5,size:3.4,color:p1.color}); break;
+      case "powershot": ability.armed=true;     // cooldown starts when the hit lands
+        particles.emit(p1.x,p1.y,{count:14,speed:160,life:0.5,size:3,color:"#ffcf4d"}); break;
+      case "shield": shield.active=true; shield.t=shield.max; ability.cd=ability.cdMax; break;
+      case "freeze": ability.freezeT=1.5; ability.cd=ability.cdMax;
+        particles.emit(puck.x,puck.y,{count:16,speed:180,life:0.6,size:3,color:"#7cc6ff"}); break;
+    }
+    updateAbilityHud();
+  }
+  function updateAbilities(dt){
+    if (ability.cd>0) ability.cd=Math.max(0,ability.cd-dt);
+    if (ability.dashT>0) ability.dashT=Math.max(0,ability.dashT-dt);
+    if (ability.freezeT>0) ability.freezeT=Math.max(0,ability.freezeT-dt);
+    if (shield.active){ shield.t-=dt; if (shield.t<=0) shield.active=false; }
+    // power-shot auto-disarms after a short window so it can't be held forever
+    updateAbilityHud();
+  }
+  // HUD button reflecting the ability icon, ready/cooldown state
+  const abilityBtn = document.getElementById("ability-btn");
+  function updateAbilityHud(){
+    if (!abilityBtn) return;
+    if (!skillsOn || !ability.id){ abilityBtn.style.display="none"; return; }
+    abilityBtn.style.display="flex";
+    const def = Progression.get(ability.id);
+    const ready = ability.cd<=0;
+    const pct = ability.cdMax>0 ? (1-ability.cd/ability.cdMax) : 1;
+    abilityBtn.querySelector(".ab-icon").textContent = def.icon;
+    abilityBtn.classList.toggle("ready", ready && !ability.armed);
+    abilityBtn.classList.toggle("armed", ability.armed);
+    abilityBtn.style.setProperty("--cd", (pct*360)+"deg");
+  }
+
   let lastTimerSec=-1;
   function updateTimer(){
     const s=Math.floor(matchElapsed);
@@ -1084,6 +1527,7 @@ const Game = (() => {
     drawTable();
     drawCenter();
     drawGoals();
+    drawShield();
     drawTrail();
     drawPuck();
     drawPaddle(p2);
@@ -1156,12 +1600,34 @@ const Game = (() => {
   function drawTrail(){
     if (Storage.get("quality")==="low") return;
     ctx.save(); ctx.globalCompositeOperation="lighter";
+    const now=performance.now()/1000;
     for (let i=0;i<puck.trail.length;i++){
       const t=puck.trail[i]; const a=i/puck.trail.length;
       ctx.globalAlpha=a*0.4;
-      ctx.fillStyle="#9fe9ff";
+      // cosmetic trail: solid colour, or animated rainbow per-segment
+      ctx.fillStyle = trailStyle.rainbow
+        ? `hsl(${(i*22 + now*180)%360},100%,65%)`
+        : (trailStyle.color||"#9fe9ff");
       ctx.beginPath(); ctx.arc(t.x,t.y,puck.r*a*0.9,0,Math.PI*2); ctx.fill();
     }
+    ctx.restore();
+  }
+
+  // Shield ability barrier in front of P1's goal
+  function drawShield(){
+    if (!shield.active) return;
+    const goalL=(FW-GOAL_W)/2-20, goalR=(FW+GOAL_W)/2+20;
+    const pulse=0.6+Math.sin(performance.now()/120)*0.25;
+    const alpha=Math.min(1,shield.t/0.5)*pulse;       // fade out in the last 0.5s
+    ctx.save();
+    ctx.globalCompositeOperation="lighter";
+    ctx.strokeStyle=`rgba(33,230,255,${alpha})`;
+    ctx.lineWidth=7; ctx.lineCap="round";
+    ctx.shadowBlur=Storage.get("quality")==="low"?0:22; ctx.shadowColor="#21e6ff";
+    ctx.beginPath(); ctx.moveTo(goalL,SHIELD_Y); ctx.lineTo(goalR,SHIELD_Y); ctx.stroke();
+    ctx.globalAlpha=alpha*0.18;
+    ctx.fillStyle="#21e6ff";
+    ctx.fillRect(goalL,SHIELD_Y,goalR-goalL,FH-WALL-SHIELD_Y);
     ctx.restore();
   }
 
@@ -1185,6 +1651,18 @@ const Game = (() => {
 
   function drawPaddle(pad){
     ctx.save();
+    // Dash aura on P1 while the buff is active / Power Shot armed
+    if (pad===p1 && (ability.dashT>0 || ability.armed)){
+      const armed=ability.armed && ability.dashT<=0;
+      ctx.save(); ctx.globalCompositeOperation="lighter";
+      const rr=pad.r*(1.4+Math.sin(performance.now()/80)*0.12);
+      const ag=ctx.createRadialGradient(pad.x,pad.y,pad.r*0.6,pad.x,pad.y,rr);
+      ag.addColorStop(0,armed?"rgba(255,207,77,0.5)":"rgba(33,230,255,0.5)");
+      ag.addColorStop(1,"rgba(33,230,255,0)");
+      ctx.fillStyle=ag;
+      ctx.beginPath(); ctx.arc(pad.x,pad.y,rr,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
     // shadow
     ctx.globalAlpha=0.45; ctx.fillStyle="rgba(0,0,0,0.55)";
     ctx.beginPath(); ctx.ellipse(pad.x+6,pad.y+10,pad.r,pad.r*0.7,0,0,Math.PI*2); ctx.fill();
@@ -1301,10 +1779,14 @@ const Game = (() => {
     }
     // M — mute toggle (works anywhere)
     if (k==="m"){ toggleMute(); }
-    // R — restart the current match
-    if (k==="r" && (inGame||state==="paused")){ startMatch(mode,difficulty); }
+    // R — restart the current match (preserving ranked)
+    if (k==="r" && (inGame||state==="paused")){ startMatch(mode,difficulty,{ranked}); }
+    // Space / E — use active ability
+    if ((k===" "||k==="e") && inGame){ useAbility(); }
     if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
   });
+  // on-screen ability button (mobile-friendly)
+  if (abilityBtn) abilityBtn.addEventListener("click",()=>{ useAbility(); });
   window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
 
   // Keep the canvas correctly sized across resize, rotation and the mobile
@@ -1338,12 +1820,14 @@ const Game = (() => {
   function pauseGame(){
     if (state!=="play"&&state!=="countdown"&&state!=="goal") return;
     Game._resume=state; state="paused";
+    if (abilityBtn) abilityBtn.style.display="none";
     UI.show("pause");
   }
   function resumeGame(){
     if (state!=="paused") return;
     state=Game._resume||"play";
     UI.hideAll();
+    updateAbilityHud();
     lastT=0;
   }
   document.getElementById("pause-btn").addEventListener("click",()=>{ Audio.click(); pauseGame(); });
@@ -1352,12 +1836,13 @@ const Game = (() => {
   return {
     startMatch, resize,
     pause:pauseGame, resume:resumeGame,
-    restart:()=>{ startMatch(mode,difficulty); },
+    restart:()=>{ startMatch(mode,difficulty,{ranked}); },
     quitToMenu:()=>{
       state="menu";
       document.getElementById("hud").style.display="none";
       document.getElementById("game-wrap").style.display="none";
       document.getElementById("countdown").style.display="none";
+      if (abilityBtn) abilityBtn.style.display="none";
       particles.clear();
       updateMenuRecord();
       UI.show("main");
@@ -1413,6 +1898,82 @@ const Game = (() => {
       Game.startMatch("single", d);
     });
   });
+
+  // ----- Ranked screen -----
+  function openRanked(){
+    const mmr=Storage.get("mmr");
+    const tier=Progression.tierFor(mmr);
+    const ti=Progression.tierIndexFor(mmr);
+    const prog=Progression.tierProgress(mmr);
+    const badge=document.getElementById("rank-badge");
+    badge.textContent=tier.name;
+    badge.style.background=`linear-gradient(90deg,${tier.color},#fff)`;
+    badge.style.webkitBackgroundClip="text"; badge.style.backgroundClip="text";
+    document.getElementById("rank-mmr").textContent=`${mmr} MMR`;
+    document.getElementById("rank-bar-fill").style.width=(prog*100)+"%";
+    const tiers=Progression.TIERS;
+    document.getElementById("rank-next").textContent =
+      ti>=tiers.length-1 ? "TOP TIER — you've reached the summit"
+                         : `${tiers[ti+1].min-mmr} MMR to ${tiers[ti+1].name}`;
+    document.getElementById("rank-record").textContent =
+      `Ranked record: ${Storage.get("rankWins")}W / ${Storage.get("rankLosses")}L`;
+    UI.show("ranked");
+  }
+  document.getElementById("main-ranked").addEventListener("click",()=>{ Audio.click(); openRanked(); });
+  document.getElementById("ranked-play").addEventListener("click",()=>{ Audio.click(); Game.startMatch("single",null,{ranked:true}); });
+  document.getElementById("ranked-skills").addEventListener("click",()=>{ Audio.click(); lockerReturn="ranked"; buildLocker(); UI.show("locker"); });
+
+  // ----- Skills / Locker -----
+  let lockerReturn="main";
+  const TYPE_LABELS={ active:"Active Ability (pick 1)", passive:"Passive Boosts (pick up to 2)",
+                      paddle:"Paddle Skins", trail:"Puck Trails" };
+  function buildLocker(){
+    const lo=Progression.loadout();
+    const body=document.getElementById("locker-body");
+    body.innerHTML="";
+    ["active","passive","paddle","trail"].forEach(type=>{
+      const group=document.createElement("div"); group.className="locker-group";
+      const h=document.createElement("h4"); h.textContent=TYPE_LABELS[type]; group.appendChild(h);
+      const grid=document.createElement("div"); grid.className="skill-grid";
+      Progression.list(type).forEach(s=>{
+        const unlocked=Progression.isUnlocked(s.id);
+        let equipped=false;
+        if (type==="active") equipped = lo.active===s.id;
+        else if (type==="passive") equipped = (lo.passives||[]).includes(s.id);
+        else if (type==="paddle") equipped = lo.paddle===s.id;
+        else if (type==="trail") equipped = lo.trail===s.id;
+        const card=document.createElement("div");
+        card.className="skill-card"+(unlocked?"":" locked")+(equipped?" equipped":"");
+        card.innerHTML=`<div class="skill-ico">${s.icon}</div>
+          <div class="skill-meta">
+            <div class="skill-name">${s.name}</div>
+            <div class="skill-desc">${s.desc}</div>
+            ${unlocked?"":`<div class="skill-lock">🔒 ${s.challenge}</div>`}
+          </div>
+          ${equipped?'<div class="skill-tag">EQUIPPED</div>':""}`;
+        if (unlocked){
+          card.addEventListener("click",()=>{
+            Audio.click();
+            if (type==="active") Progression.equipActive(s.id);
+            else if (type==="passive"){
+              if (!Progression.equipPassive(s.id)) showLockerToast("Max 2 passives — unequip one first");
+            }
+            else if (type==="paddle") Progression.equipCosmetic("paddle",s.id);
+            else if (type==="trail") Progression.equipCosmetic("trail",s.id);
+            buildLocker();
+          });
+        }
+        grid.appendChild(card);
+      });
+      group.appendChild(grid); body.appendChild(group);
+    });
+  }
+  function showLockerToast(msg){
+    const t=document.getElementById("toast"); t.textContent=msg;
+    t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
+  }
+  document.getElementById("main-skills").addEventListener("click",()=>{ Audio.click(); lockerReturn="main"; buildLocker(); UI.show("locker"); });
+  document.getElementById("locker-back").addEventListener("click",()=>{ Audio.click(); UI.show(lockerReturn); });
 
   // ----- Settings widgets -----
   const vol=document.getElementById("set-vol");
