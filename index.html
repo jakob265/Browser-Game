@@ -48,6 +48,9 @@ body{
   user-select:none;
   -webkit-user-select:none;
   touch-action:none;
+  overscroll-behavior:none;        /* stop pull-to-refresh / rubber-banding on mobile */
+  -webkit-tap-highlight-color:transparent;
+  position:fixed;inset:0;          /* lock the page so it can't scroll behind the game */
 }
 
 /* Animated drifting background grid */
@@ -169,7 +172,8 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 #hud{
   position:fixed;top:0;left:0;right:0;z-index:3;
   display:none;align-items:center;justify-content:space-between;
-  padding:14px 18px;pointer-events:none;
+  padding:max(10px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left));
+  pointer-events:none;
 }
 .score-card{
   display:flex;flex-direction:column;align-items:center;min-width:120px;
@@ -230,8 +234,31 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 @media (max-width:560px){
   .panel{padding:26px 18px;}
   .row{flex-direction:column;}
-  .score-card{min-width:92px;padding:6px 12px;}
-  .score-val{font-size:36px;}
+  .score-card{min-width:84px;padding:6px 12px;}
+  .score-val{font-size:34px;}
+  .score-name{font-size:10px;letter-spacing:2px;}
+  /* bigger, thumb-friendly buttons on phones */
+  .btn{padding:18px 18px;font-size:15px;}
+  #pause-btn{width:52px;height:52px;font-size:20px;}
+}
+/* Short / landscape phones: keep the HUD slim so the table gets more room */
+@media (max-height:520px){
+  #hud{padding:6px 12px;}
+  .score-card{min-width:74px;padding:4px 10px;}
+  .score-val{font-size:26px;}
+  .score-name{font-size:9px;}
+  #timer,#mode-label{font-size:9px;}
+  #pause-btn{width:42px;height:42px;}
+  .panel{padding:18px 16px;max-height:96vh;}
+  .title{font-size:30px;}
+  .subtitle{margin-bottom:14px;}
+  .stack{gap:9px;}
+  .btn{padding:11px 14px;}
+}
+/* Hover lift only on devices that actually hover (avoids sticky states on touch) */
+@media (hover:none){
+  .btn:hover{transform:none;box-shadow:none;border-color:var(--glass-brd);}
+  .btn:active{transform:scale(.97);border-color:var(--cyan);}
 }
 .hidden{display:none !important;}
 .credit{margin-top:22px;font-size:11px;letter-spacing:2px;color:rgba(142,160,196,.6);}
@@ -284,7 +311,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
     <h2 class="section-head">Select Mode</h2>
     <div class="stack">
       <button class="btn primary" id="mode-single">SINGLE PLAYER<span class="sub">Battle the AI</span></button>
-      <button class="btn magenta" id="mode-multi">LOCAL MULTIPLAYER<span class="sub">Mouse vs WASD</span></button>
+      <button class="btn magenta" id="mode-multi">LOCAL MULTIPLAYER<span class="sub">Two players · touch or Mouse vs WASD</span></button>
       <button class="btn ghost small" data-go="main">← BACK</button>
     </div>
   </div>
@@ -347,7 +374,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <h3>Controls</h3>
       <b>Desktop — Player 1:</b> move the <b>mouse</b> over the table, or use <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> arrow keys.<br>
       <b>Multiplayer — Player 2:</b> <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> keys.<br>
-      <b>Mobile:</b> drag your finger on your half of the table.<br>
+      <b>Mobile:</b> drag your finger on your half of the table. In multiplayer, each player drags their own half at the same time (two-finger play).<br>
       <b>Shortcuts:</b> <span class="key">Esc</span>/<span class="key">P</span> pause · <span class="key">R</span> restart · <span class="key">M</span> mute.<br>
       The game auto-pauses if you switch tabs, and a stalled puck is automatically nudged back into play.
       <h3>Rules</h3>
@@ -590,7 +617,12 @@ const Game = (() => {
   let aiReactTimer = 0;
 
   // ---- Input ----
-  const pointer = { x:FW/2, y:FH-120, active:false, id:null };
+  // ptr1 drives the bottom paddle (P1), ptr2 the top paddle (P2 in multiplayer).
+  // Mouse only ever controls ptr1; touches are assigned to a paddle by the half
+  // they start in, enabling two-finger local multiplayer on a phone/tablet.
+  const ptr1 = { x:FW/2, y:FH-120, active:false };
+  const ptr2 = { x:FW/2, y:120,    active:false };
+  const TOUCH_OFFSET = 56;   // lift the paddle off the fingertip so it stays visible
   const keys = {};
 
   // ---------- Resize / scaling ----------
@@ -640,7 +672,8 @@ const Game = (() => {
     puck.x=FW/2; puck.y=FH/2; puck.vx=0; puck.vy=0; puck.trail.length=0;
     p1.x=FW/2; p1.y=FH-120; p1.vx=p1.vy=0; p1.px=p1.x; p1.py=p1.y;
     p2.x=FW/2; p2.y=120;    p2.vx=p2.vy=0; p2.px=p2.x; p2.py=p2.y;
-    pointer.x=p1.x; pointer.y=p1.y; pointer.active=false;
+    ptr1.x=p1.x; ptr1.y=p1.y; ptr1.active=false;
+    ptr2.x=p2.x; ptr2.y=p2.y; ptr2.active=false;
   }
 
   let cdValue = 3, cdTimer = 0;
@@ -865,11 +898,13 @@ const Game = (() => {
   }
 
   // ---------- Paddle movement (human) ----------
-  function updateHumanPaddle(pad, dt, kbset, useMouse, isTop){
+  // ptr is the pointer (mouse/touch) for this paddle; kbset is its optional keys.
+  function updateHumanPaddle(pad, dt, kbset, ptr, isTop){
     pad.px=pad.x; pad.py=pad.y;
     let tx=pad.x, ty=pad.y;
-    if (useMouse && pointer.active){
-      tx=pointer.x; ty=pointer.y;
+    const usePtr = ptr && ptr.active;
+    if (usePtr){
+      tx=ptr.x; ty=ptr.y;
     } else if (kbset){
       const spd = 980*dt;
       let mx=0,my=0;
@@ -880,8 +915,8 @@ const Game = (() => {
       if (mx||my){ const l=Math.hypot(mx,my); tx+=mx/l*spd; ty+=my/l*spd; }
     }
     // smooth follow (prevents jitter, frame-rate independent).
-    // Small time-constant => paddle tracks the cursor almost 1:1 for responsive control.
-    const follow = useMouse && pointer.active ? 1-Math.exp(-dt/0.010) : 1;
+    // Small time-constant => paddle tracks the pointer almost 1:1 for responsive control.
+    const follow = usePtr ? 1-Math.exp(-dt/0.010) : 1;
     pad.x += (tx-pad.x)*follow;
     pad.y += (ty-pad.y)*follow;
     clampPaddle(pad,isTop);
@@ -1010,13 +1045,15 @@ const Game = (() => {
     updateTimer();
   }
 
+  const ARROW_KEYS={up:"arrowup",down:"arrowdown",left:"arrowleft",right:"arrowright"};
+  const WASD_KEYS={up:"w",down:"s",left:"a",right:"d"};
   function movePaddles(dt, speedScale, allowPuck){
     if (mode==="single"){
-      updateHumanPaddle(p1, dt, {up:"arrowup",down:"arrowdown",left:"arrowleft",right:"arrowright"}, true, false);
+      updateHumanPaddle(p1, dt, ARROW_KEYS, ptr1, false);
       updateAI(p2, dt*speedScale);
     } else {
-      updateHumanPaddle(p1, dt, {up:"arrowup",down:"arrowdown",left:"arrowleft",right:"arrowright"}, true, false);
-      updateHumanPaddle(p2, dt, {up:"w",down:"s",left:"a",right:"d"}, false, true);
+      updateHumanPaddle(p1, dt, ARROW_KEYS, ptr1, false);
+      updateHumanPaddle(p2, dt, WASD_KEYS, ptr2, true);
     }
   }
 
@@ -1200,27 +1237,58 @@ const Game = (() => {
   requestAnimationFrame(loop);
 
   // ---------- Input handlers ----------
-  function onPointerMove(cx,cy){
+  // Set a pointer (mouse/touch) target, clamped to its paddle's own half.
+  // isTouch lifts the paddle off the fingertip so it isn't hidden under the finger.
+  function setPointer(ptr, isTop, cx, cy, isTouch){
     const f=toField(cx,cy);
-    // constrain pointer target to the human's half so paddle can't be dragged across
-    pointer.x=f.x;
-    pointer.y=Math.max(FH/2+p1.r+2, Math.min(FH-WALL-p1.r, f.y));
-    pointer.active=true;
+    ptr.x=f.x;
+    let y=f.y + (isTouch ? (isTop ? TOUCH_OFFSET : -TOUCH_OFFSET) : 0);
+    if (isTop) ptr.y=Math.max(WALL+p2.r+2, Math.min(FH/2-p2.r-2, y));
+    else       ptr.y=Math.max(FH/2+p1.r+2, Math.min(FH-WALL-p1.r, y));
+    ptr.active=true;
   }
-  canvas.addEventListener("mousemove",e=>{ if(mode!=="menu") onPointerMove(e.clientX,e.clientY); });
-  canvas.addEventListener("mousedown",e=>{ Audio.resume(); onPointerMove(e.clientX,e.clientY); });
-  canvas.addEventListener("mouseleave",()=>{ pointer.active=false; });
 
-  canvas.addEventListener("touchstart",e=>{ e.preventDefault(); Audio.resume(); handleTouch(e); },{passive:false});
-  canvas.addEventListener("touchmove",e=>{ e.preventDefault(); handleTouch(e); },{passive:false});
-  canvas.addEventListener("touchend",e=>{ e.preventDefault(); if(e.touches.length===0) pointer.active=false; },{passive:false});
-  function handleTouch(e){
-    // pick the touch on the human's (bottom) half
-    for (const t of e.touches){
+  // --- Mouse: always controls the bottom paddle (P1) ---
+  canvas.addEventListener("mousemove",e=>{ if(mode!=="menu") setPointer(ptr1,false,e.clientX,e.clientY,false); });
+  canvas.addEventListener("mousedown",e=>{ Audio.resume(); setPointer(ptr1,false,e.clientX,e.clientY,false); });
+  canvas.addEventListener("mouseleave",()=>{ ptr1.active=false; });
+
+  // --- Touch: each finger is bound to a paddle by the half it starts in.
+  // Single player => only the bottom half is controllable.
+  // Multiplayer  => bottom finger drives P1, top finger drives P2. ---
+  const touchOwners={};   // touch identifier -> "p1" | "p2"
+  function ownerFor(fieldY){
+    if (mode==="multi") return fieldY<FH/2 ? "p2" : "p1";
+    return fieldY>=FH/2 ? "p1" : null;   // single player: ignore top-half touches
+  }
+  function applyTouch(owner,t){
+    if (owner==="p1") setPointer(ptr1,false,t.clientX,t.clientY,true);
+    else              setPointer(ptr2,true, t.clientX,t.clientY,true);
+  }
+  canvas.addEventListener("touchstart",e=>{
+    e.preventDefault(); Audio.resume();
+    for (const t of e.changedTouches){
       const f=toField(t.clientX,t.clientY);
-      if (f.y>FH/2 || !pointer.active){ onPointerMove(t.clientX,t.clientY); break; }
+      const owner=ownerFor(f.y);
+      if (owner){ touchOwners[t.identifier]=owner; applyTouch(owner,t); }
+    }
+  },{passive:false});
+  canvas.addEventListener("touchmove",e=>{
+    e.preventDefault();
+    for (const t of e.changedTouches){
+      const owner=touchOwners[t.identifier];
+      if (owner) applyTouch(owner,t);
+    }
+  },{passive:false});
+  function endTouch(e){
+    e.preventDefault();
+    for (const t of e.changedTouches){
+      const owner=touchOwners[t.identifier];
+      if (owner){ (owner==="p1"?ptr1:ptr2).active=false; delete touchOwners[t.identifier]; }
     }
   }
+  canvas.addEventListener("touchend",endTouch,{passive:false});
+  canvas.addEventListener("touchcancel",endTouch,{passive:false});
 
   window.addEventListener("keydown",e=>{
     const k=e.key.toLowerCase();
@@ -1239,7 +1307,13 @@ const Game = (() => {
   });
   window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
 
-  window.addEventListener("resize",()=>{ if(mode!=="menu") resize(); });
+  // Keep the canvas correctly sized across resize, rotation and the mobile
+  // URL-bar showing/hiding (visualViewport). A short delayed pass catches the
+  // late layout values some phones report after an orientation change.
+  function doResize(){ if(mode!=="menu") resize(); }
+  window.addEventListener("resize", doResize);
+  window.addEventListener("orientationchange", ()=>{ doResize(); setTimeout(doResize,250); });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", doResize);
 
   // QOL: show the player's accumulated record on the main menu
   function updateMenuRecord(){
