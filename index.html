@@ -185,6 +185,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 .score-val{font-size:46px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
 .score-card.p1 .score-val{color:var(--cyan);text-shadow:0 0 18px rgba(33,230,255,.6);}
 .score-card.p2 .score-val{color:var(--magenta);text-shadow:0 0 18px rgba(255,43,214,.6);}
+body.cb .score-card.p2 .score-val{color:#ff9e3d;text-shadow:0 0 18px rgba(255,158,61,.6);}
 .score-pop{animation:scorePop .5s ease;}
 .score-card.matchpoint{animation:mpPulse 1s ease-in-out infinite;}
 @keyframes mpPulse{0%,100%{box-shadow:var(--shadow)}50%{box-shadow:0 0 0 2px var(--amber),0 0 30px rgba(255,207,77,.55)}}
@@ -273,6 +274,21 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 .skill-lock{font-size:10.5px;color:var(--amber);margin-top:4px;letter-spacing:.4px;}
 .skill-tag{position:absolute;top:8px;right:8px;font-size:9px;letter-spacing:1px;color:var(--green);font-weight:700;}
 
+/* Profile / stats / achievements */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:6px;}
+.stat-card{padding:12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--glass-brd);text-align:center;}
+.stat-val{font-size:24px;font-weight:800;color:var(--cyan);font-variant-numeric:tabular-nums;}
+.stat-lbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:4px;}
+.ach-count{font-size:12px;color:var(--green);letter-spacing:1px;}
+.ach-body{display:flex;flex-direction:column;gap:7px;max-height:280px;overflow:auto;text-align:left;}
+.ach-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--glass-brd);}
+.ach-row.done{border-color:rgba(61,255,158,.4);background:rgba(61,255,158,.06);}
+.ach-ico{font-size:16px;flex:none;width:22px;text-align:center;}
+.ach-meta{flex:1;min-width:0;}
+.ach-name{font-size:12.5px;font-weight:700;color:var(--text);}
+.ach-cond{font-size:10.5px;color:var(--muted);margin-top:1px;}
+.ach-state{font-size:13px;flex:none;}
+
 /* ---------- 7. Animations ---------- */
 @keyframes scorePop{0%{transform:scale(1)}35%{transform:scale(1.5)}100%{transform:scale(1)}}
 @keyframes cdPulse{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1)}80%{opacity:1;transform:scale(1.05)}100%{opacity:0;transform:scale(1.3)}}
@@ -354,6 +370,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <button class="btn primary" data-go="mode">▶ PLAY</button>
       <button class="btn magenta" id="main-ranked">🏆 RANKED</button>
       <button class="btn" id="main-skills">⚡ SKILLS</button>
+      <button class="btn" id="main-profile">📊 PROFILE</button>
       <button class="btn ghost small" data-go="settings">⚙ SETTINGS</button>
       <button class="btn ghost small" data-go="instructions">❔ INSTRUCTIONS</button>
     </div>
@@ -368,6 +385,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
     <div class="stack">
       <button class="btn primary" id="mode-single">SINGLE PLAYER<span class="sub">Battle the AI</span></button>
       <button class="btn magenta" id="mode-multi">LOCAL MULTIPLAYER<span class="sub">Two players · touch or Mouse vs WASD</span></button>
+      <button class="btn" id="mode-practice">PRACTICE<span class="sub">Free play · no scoring</span></button>
       <button class="btn ghost small" data-go="main">← BACK</button>
     </div>
   </div>
@@ -410,10 +428,25 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 <div class="screen" id="screen-locker">
   <div class="panel" style="width:min(680px,96vw);">
     <h2 class="section-head">Skills &amp; Locker</h2>
-    <p class="locker-hint">Equip <b>1 active</b> ability, up to <b>2 passives</b>, plus a paddle skin &amp; trail. Locked items show their challenge.</p>
+    <p class="locker-hint">Equip <b>1 active</b> ability, up to <b>2 passives</b>, plus a paddle, puck, trail &amp; arena skin. Locked items show their challenge.</p>
     <div id="locker-body"></div>
     <div class="stack" style="margin-top:16px;">
       <button class="btn ghost small" id="locker-back">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile / Stats + Achievements -->
+<div class="screen" id="screen-profile">
+  <div class="panel" style="width:min(680px,96vw);">
+    <h2 class="section-head">Profile</h2>
+    <div id="profile-rank" class="rank-badge" style="font-size:26px;">BRONZE</div>
+    <div id="stat-grid" class="stat-grid"></div>
+    <h2 class="section-head" style="margin-top:18px;">Achievements <span id="ach-count" class="ach-count"></span></h2>
+    <div id="ach-body" class="ach-body"></div>
+    <div class="stack" style="margin-top:16px;">
+      <button class="btn" id="profile-locker">⚡ OPEN LOCKER</button>
+      <button class="btn ghost small" data-go="main">← BACK</button>
     </div>
   </div>
 </div>
@@ -431,8 +464,20 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <div class="toggle on" id="set-sound"></div>
     </div>
     <div class="setting">
+      <div><label>Music Volume</label><span class="hint">Background music</span></div>
+      <input type="range" id="set-music-vol" min="0" max="100" value="40">
+    </div>
+    <div class="setting">
+      <div><label>Music</label><span class="hint">Toggle background music</span></div>
+      <div class="toggle on" id="set-music"></div>
+    </div>
+    <div class="setting">
       <div><label>Game Speed</label><span class="hint">Puck & paddle tempo</span></div>
       <input type="range" id="set-speed" min="70" max="140" value="100">
+    </div>
+    <div class="setting">
+      <div><label>Match Length</label><span class="hint">Casual win score (ranked is 7)</span></div>
+      <select id="set-matchlen"><option value="3">First to 3</option><option value="5">First to 5</option><option value="7" selected>First to 7</option></select>
     </div>
     <div class="setting">
       <div><label>Graphics Quality</label><span class="hint">Particles & effects</span></div>
@@ -443,8 +488,24 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <select id="set-diff"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select>
     </div>
     <div class="setting">
+      <div><label>Reduced Motion</label><span class="hint">Cut screen shake & flashes</span></div>
+      <div class="toggle" id="set-motion"></div>
+    </div>
+    <div class="setting">
+      <div><label>Mobile Haptics</label><span class="hint">Vibrate on hits & goals</span></div>
+      <div class="toggle on" id="set-haptics"></div>
+    </div>
+    <div class="setting">
+      <div><label>Colorblind Mode</label><span class="hint">High-contrast amber for P2</span></div>
+      <div class="toggle" id="set-cb"></div>
+    </div>
+    <div class="setting">
       <div><label>Fullscreen</label><span class="hint">Toggle immersive mode</span></div>
       <div class="toggle" id="set-fs"></div>
+    </div>
+    <div class="setting">
+      <div><label>Reset Progress</label><span class="hint">Erase ranks, skills & stats</span></div>
+      <button class="btn ghost small" id="set-reset" style="flex:none;padding:8px 14px;">RESET</button>
     </div>
     <div class="stack" style="margin-top:22px;">
       <button class="btn ghost small" id="settings-back">← BACK</button>
@@ -458,7 +519,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
     <h2 class="section-head">How To Play</h2>
     <div class="doc">
       <h3>Goal</h3>
-      Knock the puck into your opponent's goal. First to <b>7 points</b> wins the match.
+      Knock the puck into your opponent's goal. First to <b>7 points</b> wins (casual length is adjustable to 3/5/7 in Settings; ranked is always 7).
       <h3>Controls</h3>
       <b>Desktop — Player 1:</b> move the <b>mouse</b> over the table, or use <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> arrow keys.<br>
       <b>Multiplayer — Player 2:</b> <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> keys.<br>
@@ -469,7 +530,8 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       Paddles cannot cross the center line and cannot leave the table. After every goal a short countdown resets the puck to center.
       <h3>Game Modes</h3>
       <b>Single Player</b> — compete against an adaptive AI.<br>
-      <b>Local Multiplayer</b> — two players share one device.
+      <b>Local Multiplayer</b> — two players share one device.<br>
+      <b>Practice</b> — free play vs the AI with no scoring; great for testing a loadout.
       <h3>Difficulty</h3>
       <b>Easy</b> — slow paddle, delayed reactions, loose aim.<br>
       <b>Medium</b> — balanced speed with moderate puck prediction.<br>
@@ -477,8 +539,10 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <h3>Ranked</h3>
       Climb an MMR ladder from <b>Bronze → Master</b>. Win to gain rating, lose to drop; the swing scales with the score margin and the AI gets tougher as you rise.
       <h3>Skills &amp; Challenges</h3>
-      Unlock abilities by completing in-match <b>challenges</b> (shown in the Skills locker). Equip <b>1 active</b> ability, up to <b>2 passive</b> boosts, plus a paddle skin and trail.
+      Unlock abilities and cosmetics by completing in-match <b>challenges</b> (shown in the Skills locker). Equip <b>1 active</b> ability, up to <b>2 passive</b> boosts, plus paddle, puck, trail and arena skins.
       Trigger your active ability with <span class="key">Space</span> / <span class="key">E</span> or the on-screen button. Skills are active in Single Player and Ranked.
+      <h3>Cosmetics &amp; Profile</h3>
+      Arena skins follow your rank automatically (or pin one in the locker). Track career stats and achievement progress on the <b>Profile</b> screen.
     </div>
     <div class="stack" style="margin-top:20px;">
       <button class="btn ghost small" data-go="main">← BACK</button>
@@ -535,12 +599,21 @@ const Storage = (() => {
   const defaults = {
     volume: 0.7,
     sound: true,
+    musicVolume: 0.4,
+    music: true,
     speed: 1.0,
     quality: "high",
     difficulty: "medium",
     mode: "single",
+    matchLen: 7,          // casual win score (3/5/7); ranked is always 7
+    reducedMotion: false, // accessibility: cut screen shake & heavy flashes
+    haptics: true,        // mobile vibration on hits/goals
+    colorblind: false,    // high-contrast palette (P2 -> amber)
     bestWins: 0,
     bestStreak: 0,
+    curStreak: 0,
+    gamesPlayed: 0,
+    totalLosses: 0,
     // ----- progression / ranked / skills -----
     mmr: 850,             // hidden rating, maps to a tier (starts low in Bronze)
     peakMmr: 850,         // highest reached (for tier-based unlocks)
@@ -548,9 +621,9 @@ const Storage = (() => {
     rankLosses: 0,
     totalWins: 0,         // cumulative casual+ranked wins
     totalGoals: 0,        // cumulative goals scored by the player
-    unlocked: ["dash","skin_default","trail_default"],  // owned skills; starters seeded
-                          //  so the locker is never empty and defaults aren't "re-unlocked"
-    loadout: { active:"dash", passives:[], paddle:"skin_default", trail:"trail_default" }
+    unlocked: ["dash","skin_default","trail_default","puck_default","arena_bronze"],
+    loadout: { active:"dash", passives:[], paddle:"skin_default", trail:"trail_default",
+               puck:"puck_default", arena:"auto" }
   };
   let data = {...defaults};
   try {
@@ -612,8 +685,21 @@ const Progression = (() => {
     return delta;
   }
 
+  // ---- Arena themes (table colours). bg = 3 gradient stops; edge/edge2 = glow
+  //      rim colours; grid = faint inner grid; accent = centre line/circle. ----
+  const ARENAS = {
+    bronze:   { bg:["#1a1308","#120c05","#1a1308"], edge:"#ffae3d", edge2:"#ff6a3d", grid:"rgba(255,174,61,.06)", accent:"#ffae3d" },
+    silver:   { bg:["#0c1320","#080d18","#0c1320"], edge:"#c8d4e3", edge2:"#7cc6ff", grid:"rgba(140,198,255,.06)", accent:"#a9c4e3" },
+    gold:     { bg:["#1b1606","#120e03","#1b1606"], edge:"#ffcf4d", edge2:"#3dffd0", grid:"rgba(255,207,77,.06)", accent:"#ffcf4d" },
+    platinum: { bg:["#06181a","#04100f","#06181a"], edge:"#3dffd0", edge2:"#21e6ff", grid:"rgba(61,255,208,.06)", accent:"#3dffd0" },
+    diamond:  { bg:["#081626","#050f1c","#081626"], edge:"#7cc6ff", edge2:"#bdf3ff", grid:"rgba(124,198,255,.07)", accent:"#7cc6ff" },
+    master:   { bg:["#16081f","#0e0516","#16081f"], edge:"#ff5ce0", edge2:"#8a5cff", grid:"rgba(255,92,224,.07)", accent:"#ff5ce0" },
+    classic:  { bg:["#0b1126","#0a0f22","#0b1126"], edge:"#21e6ff", edge2:"#ff2bd6", grid:"rgba(80,120,200,.06)", accent:"#8a5cff" }
+  };
+  const TIER_ARENA = ["bronze","silver","gold","platinum","diamond","master"];
+
   // ---- Skills registry ----
-  // type: active | passive | paddle | trail
+  // type: active | passive | paddle | trail | puck | arena
   // challenge: human-readable unlock condition
   // check(ctx): returns true when the unlock condition is met
   const SKILLS = [
@@ -671,7 +757,36 @@ const Progression = (() => {
       check:c=>c.totalGoals>=25 },
     { id:"trail_rainbow", type:"trail", name:"Spectrum", icon:"≈", color:"rainbow",
       desc:"Shifting rainbow trail.", challenge:"Reach Platinum tier.",
-      check:c=>c.peakTier>=3 }
+      check:c=>c.peakTier>=3 },
+    // --- Cosmetic puck skins (inner/outer glow colours) ---
+    { id:"puck_default", type:"puck", name:"Ice (default)", icon:"⬤", puck:["#ffffff","#bdf3ff","#3aa9ff"],
+      desc:"Classic frosted puck.", challenge:"Available from the start.", check:()=>true },
+    { id:"puck_ember", type:"puck", name:"Ember", icon:"⬤", puck:["#fff6e0","#ffb347","#ff5630"],
+      desc:"Molten ember core.", challenge:"Land a hit at 1200+ puck speed.",
+      check:c=>c.maxHitSpeed>=1200 },
+    { id:"puck_toxic", type:"puck", name:"Toxic", icon:"⬤", puck:["#f4ffe0","#9dff5e","#2fbf4f"],
+      desc:"Radioactive green glow.", challenge:"Win 5 matches total.",
+      check:c=>c.totalWins>=5 },
+    { id:"puck_violet", type:"puck", name:"Nova", icon:"⬤", puck:["#fbe9ff","#d98cff","#8a3cff"],
+      desc:"Violet supernova.", challenge:"Reach Gold tier.",
+      check:c=>c.peakTier>=2 },
+    { id:"puck_gold", type:"puck", name:"Bullion", icon:"⬤", puck:["#fff7d6","#ffd84d","#d99a1a"],
+      desc:"Solid gold puck.", challenge:"Reach Diamond tier.",
+      check:c=>c.peakTier>=4 },
+    // --- Cosmetic arena skins (table theme). Default loadout uses "auto" which
+    //     follows your rank tier; each themed arena unlocks by reaching that tier. ---
+    { id:"arena_bronze", type:"arena", name:"Foundry", icon:"▦", arena:ARENAS.bronze,
+      desc:"Warm bronze foundry.", challenge:"Available from the start.", check:()=>true },
+    { id:"arena_silver", type:"arena", name:"Frostworks", icon:"▦", arena:ARENAS.silver,
+      desc:"Cool steel rink.", challenge:"Reach Silver tier.", check:c=>c.peakTier>=1 },
+    { id:"arena_gold", type:"arena", name:"Sunspire", icon:"▦", arena:ARENAS.gold,
+      desc:"Golden sun arena.", challenge:"Reach Gold tier.", check:c=>c.peakTier>=2 },
+    { id:"arena_platinum", type:"arena", name:"Tidal", icon:"▦", arena:ARENAS.platinum,
+      desc:"Teal tidal court.", challenge:"Reach Platinum tier.", check:c=>c.peakTier>=3 },
+    { id:"arena_diamond", type:"arena", name:"Glacier", icon:"▦", arena:ARENAS.diamond,
+      desc:"Icy glacier dome.", challenge:"Reach Diamond tier.", check:c=>c.peakTier>=4 },
+    { id:"arena_master", type:"arena", name:"Singularity", icon:"▦", arena:ARENAS.master,
+      desc:"Violet event horizon.", challenge:"Reach Master tier.", check:c=>c.peakTier>=5 }
   ];
   const byId = {};
   SKILLS.forEach(s=>byId[s.id]=s);
@@ -709,16 +824,30 @@ const Progression = (() => {
   }
   function equipCosmetic(type,id){ const l=loadout(); l[type]=id; saveLoadout(l); }
 
-  return { TIERS, tierIndexFor, tierFor, tierProgress, aiForTier, eloUpdate,
+  // Resolve the arena theme to render: "auto" follows the current rank tier,
+  // otherwise the player's pinned arena (falls back to auto if it's not unlocked).
+  function resolveArena(){
+    const l=loadout();
+    if (!l.arena || l.arena==="auto") return ARENAS[TIER_ARENA[tierIndexFor(Storage.get("mmr"))]];
+    const def=byId[l.arena];
+    if (def && isUnlocked(def.id)) return def.arena;
+    return ARENAS[TIER_ARENA[tierIndexFor(Storage.get("mmr"))]];
+  }
+  function resolvePuck(){
+    const l=loadout(); const def=byId[l.puck];
+    return (def && isUnlocked(def.id)) ? def.puck : ["#ffffff","#bdf3ff","#3aa9ff"];
+  }
+
+  return { TIERS, ARENAS, TIER_ARENA, tierIndexFor, tierFor, tierProgress, aiForTier, eloUpdate,
            SKILLS, isUnlocked, unlock, get, list, evaluateUnlocks,
-           loadout, equipActive, equipPassive, equipCosmetic };
+           loadout, equipActive, equipPassive, equipCosmetic, resolveArena, resolvePuck };
 })();
 
 /* ----------------------------------------------------------------------
    AUDIO — all SFX generated with the Web Audio API
 ---------------------------------------------------------------------- */
 const Audio = (() => {
-  let ctx = null, master = null;
+  let ctx = null, master = null, musicGain = null;
   function ensure(){
     if (ctx) return;
     try{
@@ -726,12 +855,64 @@ const Audio = (() => {
       master = ctx.createGain();
       master.gain.value = Storage.get("sound") ? Storage.get("volume") : 0;
       master.connect(ctx.destination);
+      musicGain = ctx.createGain();
+      musicGain.gain.value = (Storage.get("sound")&&Storage.get("music")) ? Storage.get("musicVolume") : 0;
+      musicGain.connect(ctx.destination);
     }catch(e){ ctx = null; }
   }
   function resume(){ if (ctx && ctx.state === "suspended") ctx.resume(); }
   function applyVolume(){
     if (!master) return;
     master.gain.setTargetAtTime(Storage.get("sound") ? Storage.get("volume") : 0, ctx.currentTime, 0.02);
+    applyMusicVolume();
+  }
+  function applyMusicVolume(){
+    if (!musicGain) return;
+    const v=(Storage.get("sound")&&Storage.get("music")) ? Storage.get("musicVolume") : 0;
+    musicGain.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
+  }
+
+  /* ---- Background music: a slow, looping neon-arcade chord/arpeggio bed,
+     scheduled ahead of time with a lookahead clock (no audio files). ---- */
+  let musicTimer=null, nextNoteTime=0, step=0;
+  const prog = [                                   // chord roots (Hz) + arp offsets
+    [220.00, [0,4,7,11]], [174.61,[0,3,7,10]],
+    [196.00,[0,4,7,11]],  [164.81,[0,3,7,10]]
+  ];
+  const semis = n => Math.pow(2, n/12);
+  function scheduleNote(time){
+    const bar = prog[Math.floor(step/4)%prog.length];
+    const root = bar[0], arp = bar[1];
+    // soft pad on each bar start
+    if (step%4===0){
+      [root, root*semis(arp[2]), root*2].forEach(f=>{
+        const o=ctx.createOscillator(), g=ctx.createGain();
+        o.type="sawtooth"; o.frequency.value=f/2;
+        const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=620;
+        g.gain.setValueAtTime(0,time); g.gain.linearRampToValueAtTime(0.12,time+0.4);
+        g.gain.linearRampToValueAtTime(0.0001,time+1.9);
+        o.connect(lp); lp.connect(g); g.connect(musicGain); o.start(time); o.stop(time+2);
+      });
+    }
+    // arpeggio pluck
+    const note = root*2*semis(arp[step%arp.length]);
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="triangle"; o.frequency.value=note;
+    g.gain.setValueAtTime(0,time); g.gain.linearRampToValueAtTime(0.09,time+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,time+0.45);
+    o.connect(g); g.connect(musicGain); o.start(time); o.stop(time+0.5);
+    step++;
+  }
+  function musicLoop(){
+    if (!ctx) return;
+    const spb = 0.5;                               // seconds per step (~120bpm 1/8)
+    while (nextNoteTime < ctx.currentTime + 0.2){ scheduleNote(nextNoteTime); nextNoteTime += spb; }
+  }
+  function startMusic(){
+    ensure(); if (!ctx || musicTimer) return; resume();
+    nextNoteTime = ctx.currentTime + 0.1; step=0;
+    applyMusicVolume();
+    musicTimer = setInterval(musicLoop, 60);
   }
   // Generic tone with envelope
   function tone(freq, dur, type="sine", vol=0.5, glideTo=null){
@@ -758,16 +939,21 @@ const Audio = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
     n.connect(f); f.connect(g); g.connect(master); n.start(); n.stop(ctx.currentTime + dur);
   }
+  // ---- Haptics (mobile vibration) ----
+  function buzz(pattern){
+    if (!Storage.get("haptics")) return;
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }
   return {
-    init:ensure, resume, applyVolume,
-    paddle:(power=1)=>{ tone(220+power*180, 0.12, "triangle", 0.45); noise(0.05, 0.25, 800+power*600); },
-    wall:()=>{ tone(160, 0.09, "sine", 0.30, 110); noise(0.04, 0.15, 500); },
-    goal:()=>{ tone(523,0.16,"sawtooth",0.4,784); setTimeout(()=>tone(659,0.2,"sawtooth",0.4,988),90); noise(0.25,0.3,400); },
+    init:ensure, resume, applyVolume, applyMusicVolume, startMusic,
+    paddle:(power=1)=>{ tone(220+power*180, 0.12, "triangle", 0.45); noise(0.05, 0.25, 800+power*600); buzz(8+Math.round(power*22)); },
+    wall:()=>{ tone(160, 0.09, "sine", 0.30, 110); noise(0.04, 0.15, 500); buzz(6); },
+    goal:()=>{ tone(523,0.16,"sawtooth",0.4,784); setTimeout(()=>tone(659,0.2,"sawtooth",0.4,988),90); noise(0.25,0.3,400); buzz([30,40,60]); },
     count:(last=false)=>{ tone(last?880:440, last?0.3:0.14, "square", 0.4); },
-    victory:()=>{ const seq=[523,659,784,1046]; seq.forEach((f,i)=>setTimeout(()=>tone(f,0.4,"sawtooth",0.4),i*150)); },
+    victory:()=>{ const seq=[523,659,784,1046]; seq.forEach((f,i)=>setTimeout(()=>tone(f,0.4,"sawtooth",0.4),i*150)); buzz([60,50,60,50,120]); },
     click:()=>{ tone(660,0.05,"square",0.25); },
-    ability:()=>{ tone(420,0.18,"sawtooth",0.35,880); noise(0.08,0.18,1400); },
-    unlock:()=>{ tone(659,0.16,"triangle",0.4,988); setTimeout(()=>tone(988,0.25,"triangle",0.4,1318),120); }
+    ability:()=>{ tone(420,0.18,"sawtooth",0.35,880); noise(0.08,0.18,1400); buzz(20); },
+    unlock:()=>{ tone(659,0.16,"triangle",0.4,988); setTimeout(()=>tone(988,0.25,"triangle",0.4,1318),120); buzz([20,40,20]); }
   };
 })();
 
@@ -861,9 +1047,10 @@ const Game = (() => {
   let mode = "single";  // single | multi
   let difficulty = "medium";
   let ranked = false;   // ranked match? (affects MMR + AI scaling)
+  let practice = false; // practice match? (no scoring / no win)
   let skillsOn = false; // whether P1's loadout is active this match
   let scores = { p1:0, p2:0 };
-  const WIN_SCORE = 7;
+  let winScore = 7;     // points needed to win (casual: 3/5/7, ranked: 7)
   let matchStart = 0, matchElapsed = 0;
   let shake = 0;
   let lastServe = "p1"; // who concedes serves to the other
@@ -874,6 +1061,8 @@ const Game = (() => {
   const ability = { id:null, cd:0, cdMax:0, armed:false, dashT:0, freezeT:0 };
   const shield = { active:false, t:0, max:3 };
   let trailStyle = { color:"#9fe9ff", rainbow:false };
+  let puckSkin = ["#ffffff","#bdf3ff","#3aa9ff"];   // cosmetic puck gradient
+  let arena = Progression.ARENAS.classic;           // cosmetic table theme
   // per-match challenge stats
   let matchStats = { maxHitSpeed:0, fastGoalScored:false, maxDeficit:0 };
 
@@ -923,6 +1112,7 @@ const Game = (() => {
   function startMatch(m, diff, opts={}){
     mode = m;
     ranked = !!opts.ranked;
+    practice = !!opts.practice;
     // Ranked is always single-player vs an AI scaled to the player's tier
     if (ranked){
       const ti = Progression.tierIndexFor(Storage.get("mmr"));
@@ -930,6 +1120,7 @@ const Game = (() => {
     } else {
       difficulty = diff||Storage.get("difficulty");
     }
+    winScore = ranked ? 7 : (practice ? Infinity : (Storage.get("matchLen")||7));
     scores.p1 = 0; scores.p2 = 0;
     matchStart = performance.now(); matchElapsed = 0;
     lastServe = "p1";
@@ -938,8 +1129,9 @@ const Game = (() => {
     document.getElementById("p1-name").textContent = "P1";
     document.getElementById("p2-name").textContent = mode==="single" ? "CPU" : "P2";
     document.getElementById("mode-label").textContent =
-      ranked ? "RANKED • "+Progression.tierFor(Storage.get("mmr")).name
-             : (mode==="single" ? "SINGLE • "+difficulty.toUpperCase() : "MULTIPLAYER");
+      practice ? "PRACTICE • "+difficulty.toUpperCase()
+      : ranked ? "RANKED • "+Progression.tierFor(Storage.get("mmr")).name
+      : (mode==="single" ? "SINGLE • "+difficulty.toUpperCase()+" • FIRST TO "+winScore : "MULTIPLAYER • FIRST TO "+winScore);
     updateScoreUI();
     document.getElementById("hud").style.display = "flex";
     document.getElementById("game-wrap").style.display = "flex";
@@ -953,30 +1145,36 @@ const Game = (() => {
   // Skills are enabled in single & ranked; multiplayer stays clean/default.
   function applyLoadout(){
     skillsOn = (mode==="single");
+    const cb = Storage.get("colorblind");
+    const p2col = cb ? "#ff9e3d" : "#ff2bd6";       // colourblind: P2 amber instead of magenta
     // reset both paddles to defaults
     p1.r=BASE_PR; p1.hitForce=0.34; p1.restitution=1.05; p1.aimAssist=0; p1.color="#21e6ff"; p1.swift=false;
-    p2.r=BASE_PR; p2.hitForce=0.34; p2.restitution=1.05; p2.aimAssist=0; p2.color="#ff2bd6";
+    p2.r=BASE_PR; p2.hitForce=0.34; p2.restitution=1.05; p2.aimAssist=0; p2.color=p2col;
     trailStyle={ color:"#9fe9ff", rainbow:false };
+    // cosmetics that apply regardless of skills (puck & arena are player flair)
+    puckSkin = Progression.resolvePuck();
+    arena = Progression.resolveArena();
     ability.id=null; ability.cd=0; ability.armed=false; ability.dashT=0; ability.freezeT=0;
     shield.active=false; shield.t=0;
-    if (!skillsOn) return;
-    const lo = Progression.loadout();
-    const has = id => Progression.isUnlocked(id) && (lo.passives||[]).includes(id);
-    if (has("bigpaddle")) p1.r = BASE_PR*1.18;
-    if (has("swift"))     p1.swift = true;
-    if (has("powerhits")) p1.hitForce = 0.34*1.30;
-    if (has("control")){  p1.aimAssist = 0.10; }
-    // active ability
-    if (lo.active && Progression.isUnlocked(lo.active)){
-      ability.id = lo.active; ability.cdMax = CD_MAX[lo.active]||7;
-    }
-    // cosmetics
-    const skin = Progression.get(lo.paddle);
-    if (skin && Progression.isUnlocked(skin.id)) p1.color = skin.color;
-    const tr = Progression.get(lo.trail);
-    if (tr && Progression.isUnlocked(tr.id)){
-      if (tr.color==="rainbow") trailStyle={ color:null, rainbow:true };
-      else trailStyle={ color:tr.color, rainbow:false };
+    if (skillsOn){
+      const lo = Progression.loadout();
+      const has = id => Progression.isUnlocked(id) && (lo.passives||[]).includes(id);
+      if (has("bigpaddle")) p1.r = BASE_PR*1.18;
+      if (has("swift"))     p1.swift = true;
+      if (has("powerhits")) p1.hitForce = 0.34*1.30;
+      if (has("control")){  p1.aimAssist = 0.10; }
+      // active ability
+      if (lo.active && Progression.isUnlocked(lo.active)){
+        ability.id = lo.active; ability.cdMax = CD_MAX[lo.active]||7;
+      }
+      // paddle skin & trail
+      const skin = Progression.get(lo.paddle);
+      if (skin && Progression.isUnlocked(skin.id)) p1.color = skin.color;
+      const tr = Progression.get(lo.trail);
+      if (tr && Progression.isUnlocked(tr.id)){
+        if (tr.color==="rainbow") trailStyle={ color:null, rainbow:true };
+        else trailStyle={ color:tr.color, rainbow:false };
+      }
     }
     updateAbilityHud();
   }
@@ -1008,6 +1206,19 @@ const Game = (() => {
 
   function scoreGoal(scorer){
     if (state!=="play") return;
+    Audio.goal();
+    const gy0 = scorer==="p1" ? WALL : FH-WALL;
+    particles.emit(puck.x, gy0, {count:60, speed:340, life:0.9, size:5,
+      color: scorer==="p1" ? p2.color : "#21e6ff", angle: scorer==="p1"?Math.PI/2:-Math.PI/2, spread:Math.PI});
+    shake = Math.min(shake+18, 26);
+    lastServe = scorer==="p1" ? "p2" : "p1";  // loser serves
+    // Practice: rallies only — no scoring, no winner
+    if (practice){
+      state="goal";
+      showToast(scorer==="p1" ? "NICE!" : "RALLY");
+      setTimeout(()=>{ if(state==="goal"){ resetPositions(); beginCountdown(); } }, 1100);
+      return;
+    }
     // challenge stats: record fast goals & cumulative goals for the player
     if (scorer==="p1"){
       const sp=Math.hypot(puck.vx,puck.vy);
@@ -1018,19 +1229,12 @@ const Game = (() => {
     // track the worst deficit the player faced (for the comeback challenge)
     const deficit = scores.p2 - scores.p1;
     if (deficit>matchStats.maxDeficit) matchStats.maxDeficit=deficit;
-    Audio.goal();
     updateScoreUI();
-    shake = Math.min(shake+18, 26);
-    // explosion at the goal
-    const gy = scorer==="p1" ? WALL : FH-WALL;
-    particles.emit(puck.x, gy, {count:60, speed:340, life:0.9, size:5,
-      color: scorer==="p1" ? "#ff2bd6" : "#21e6ff", angle: scorer==="p1"?Math.PI/2:-Math.PI/2, spread:Math.PI});
-    lastServe = scorer==="p1" ? "p2" : "p1";  // loser serves
-    if (scores[scorer] >= WIN_SCORE){ victory(scorer); return; }
+    if (scores[scorer] >= winScore){ victory(scorer); return; }
     state = "goal";
     showToast(scorer==="p1" ? "GOAL!" : (mode==="single"?"CPU SCORES":"P2 SCORES"));
     // announce match point when the scorer is now one goal away from winning
-    if (scores[scorer]===WIN_SCORE-1){
+    if (scores[scorer]===winScore-1){
       setTimeout(()=>{ if(state==="goal") showToast("MATCH POINT"); }, 750);
     }
     setTimeout(()=>{ if(state==="goal"){ resetPositions(); beginCountdown(); } }, 1400);
@@ -1047,10 +1251,17 @@ const Game = (() => {
     else nameEl.textContent = (winner==="p1"?"PLAYER 1":"PLAYER 2") + " WINS!";
     document.getElementById("win-score").textContent = `${scores.p1} — ${scores.p2}`;
 
-    // ----- persist cumulative + best records -----
+    // ----- persist cumulative + best records & career stats -----
+    Storage.set("gamesPlayed",(Storage.get("gamesPlayed")||0)+1);
     if (youWon){
       Storage.set("totalWins",(Storage.get("totalWins")||0)+1);
       if (mode==="single") Storage.set("bestWins",(Storage.get("bestWins")||0)+1);
+      const cs=(Storage.get("curStreak")||0)+1;
+      Storage.set("curStreak",cs);
+      if (cs>(Storage.get("bestStreak")||0)) Storage.set("bestStreak",cs);
+    } else {
+      Storage.set("totalLosses",(Storage.get("totalLosses")||0)+1);
+      Storage.set("curStreak",0);
     }
 
     // ----- ranked: update MMR (ELO) and report the change -----
@@ -1115,8 +1326,8 @@ const Game = (() => {
     document.getElementById("p1-score").textContent=scores.p1;
     document.getElementById("p2-score").textContent=scores.p2;
     // pulse a score card when its player is one point from winning (match point)
-    document.querySelector(".score-card.p1").classList.toggle("matchpoint", scores.p1===WIN_SCORE-1);
-    document.querySelector(".score-card.p2").classList.toggle("matchpoint", scores.p2===WIN_SCORE-1);
+    document.querySelector(".score-card.p1").classList.toggle("matchpoint", scores.p1===winScore-1);
+    document.querySelector(".score-card.p2").classList.toggle("matchpoint", scores.p2===winScore-1);
   }
 
   let toastTimer=0;
@@ -1520,9 +1731,9 @@ const Game = (() => {
   function render(){
     ctx.save();
     ctx.scale(scale,scale);
-    // screen shake
+    // screen shake (suppressed when reduced-motion is on)
     let sx=0, sy=0;
-    if (shake>0){ sx=(Math.random()-0.5)*shake; sy=(Math.random()-0.5)*shake; ctx.translate(sx,sy); }
+    if (shake>0 && !Storage.get("reducedMotion")){ sx=(Math.random()-0.5)*shake; sy=(Math.random()-0.5)*shake; ctx.translate(sx,sy); }
     ctx.clearRect(-30,-30,FW+60,FH+60);
     drawTable();
     drawCenter();
@@ -1534,65 +1745,74 @@ const Game = (() => {
     drawPaddle(p1);
     particles.draw(ctx);
     if (state==="victory") drawConfetti();
-    // impact flash overlay
+    // impact flash overlay (dimmed when reduced-motion is on)
     if (flash>0){
       ctx.save(); ctx.globalCompositeOperation="lighter";
-      ctx.fillStyle=`rgba(120,180,255,${flash*0.12})`;
+      const fa = Storage.get("reducedMotion") ? flash*0.04 : flash*0.12;
+      ctx.fillStyle=`rgba(120,180,255,${fa})`;
       ctx.fillRect(0,0,FW,FH); ctx.restore();
     }
     ctx.restore();
   }
 
   function drawTable(){
-    // playfield background gradient
+    // playfield background gradient (arena theme)
     const g=ctx.createLinearGradient(0,0,0,FH);
-    g.addColorStop(0,"#0b1126"); g.addColorStop(0.5,"#0a0f22"); g.addColorStop(1,"#0b1126");
+    g.addColorStop(0,arena.bg[0]); g.addColorStop(0.5,arena.bg[1]); g.addColorStop(1,arena.bg[2]);
     ctx.fillStyle=g; ctx.fillRect(0,0,FW,FH);
     // subtle inner grid
     if (Storage.get("quality")!=="low"){
-      ctx.strokeStyle="rgba(80,120,200,0.06)"; ctx.lineWidth=1;
+      ctx.strokeStyle=arena.grid; ctx.lineWidth=1;
       for (let x=WALL;x<FW;x+=48){ ctx.beginPath(); ctx.moveTo(x,WALL); ctx.lineTo(x,FH-WALL); ctx.stroke(); }
       for (let y=WALL;y<FH;y+=48){ ctx.beginPath(); ctx.moveTo(WALL,y); ctx.lineTo(FW-WALL,y); ctx.stroke(); }
     }
-    // glowing edges
+    // glowing edges (arena theme)
     ctx.lineJoin="round";
     const glow=(color,w)=>{ ctx.strokeStyle=color; ctx.lineWidth=w; ctx.strokeRect(WALL,WALL,FW-WALL*2,FH-WALL*2); };
     ctx.save();
-    ctx.shadowBlur= Storage.get("quality")==="low"?0:24; ctx.shadowColor="#21e6ff";
-    glow("rgba(33,230,255,0.85)",3);
-    ctx.shadowColor="#ff2bd6";
-    glow("rgba(255,43,214,0.18)",6);
+    ctx.shadowBlur= Storage.get("quality")==="low"?0:24; ctx.shadowColor=arena.edge;
+    glow(arena.edge,3);
+    ctx.shadowColor=arena.edge2;
+    glow(hexA(arena.edge2,0.18),6);
     ctx.restore();
+  }
+  // tint a hex colour with an alpha for rgba strokes
+  function hexA(hex,a){
+    const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    if (!m) return hex;
+    return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
   }
 
   let centerPhase=0;
   function drawCenter(){
     centerPhase+=0.02;
     ctx.save();
-    // animated center line
-    ctx.strokeStyle="rgba(138,92,255,0.5)";
+    // animated center line (arena accent)
+    const acc=arena.accent;
+    ctx.strokeStyle=hexA(acc,0.5);
     ctx.lineWidth=2; ctx.setLineDash([14,12]); ctx.lineDashOffset=-centerPhase*40;
     ctx.beginPath(); ctx.moveTo(WALL,FH/2); ctx.lineTo(FW-WALL,FH/2); ctx.stroke();
     ctx.setLineDash([]);
     // center circle with pulse
     const pulse=1+Math.sin(centerPhase*2)*0.04;
-    ctx.shadowBlur=Storage.get("quality")==="low"?0:18; ctx.shadowColor="#8a5cff";
-    ctx.strokeStyle="rgba(138,92,255,0.6)"; ctx.lineWidth=2.5;
+    ctx.shadowBlur=Storage.get("quality")==="low"?0:18; ctx.shadowColor=acc;
+    ctx.strokeStyle=hexA(acc,0.6); ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(FW/2,FH/2,70*pulse,0,Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(FW/2,FH/2,6,0,Math.PI*2); ctx.fillStyle="rgba(138,92,255,0.8)"; ctx.fill();
+    ctx.beginPath(); ctx.arc(FW/2,FH/2,6,0,Math.PI*2); ctx.fillStyle=hexA(acc,0.8); ctx.fill();
     ctx.restore();
   }
 
   function drawGoals(){
     const goalL=(FW-GOAL_W)/2, goalR=(FW+GOAL_W)/2;
+    const topCol="#21e6ff", botCol=p2.color;   // side identity (botCol honours colourblind)
     ctx.save();
     ctx.lineWidth=8; ctx.lineCap="round";
     ctx.shadowBlur=Storage.get("quality")==="low"?0:20;
-    // top goal (P1 attacks here) — cyan
-    ctx.strokeStyle="rgba(33,230,255,0.9)"; ctx.shadowColor="#21e6ff";
+    // top goal (P1 attacks here)
+    ctx.strokeStyle=hexA(topCol,0.9); ctx.shadowColor=topCol;
     ctx.beginPath(); ctx.moveTo(goalL,WALL); ctx.lineTo(goalR,WALL); ctx.stroke();
-    // bottom goal — magenta
-    ctx.strokeStyle="rgba(255,43,214,0.9)"; ctx.shadowColor="#ff2bd6";
+    // bottom goal (P1 defends)
+    ctx.strokeStyle=hexA(botCol,0.9); ctx.shadowColor=botCol;
     ctx.beginPath(); ctx.moveTo(goalL,FH-WALL); ctx.lineTo(goalR,FH-WALL); ctx.stroke();
     ctx.restore();
   }
@@ -1637,10 +1857,10 @@ const Game = (() => {
     ctx.globalAlpha=0.5; ctx.fillStyle="rgba(0,0,0,0.5)";
     ctx.beginPath(); ctx.ellipse(puck.x+5,puck.y+8,puck.r,puck.r*0.7,0,0,Math.PI*2); ctx.fill();
     ctx.globalAlpha=1;
-    // glow
-    ctx.shadowBlur=Storage.get("quality")==="low"?6:28; ctx.shadowColor="#bdf3ff";
+    // glow (puck skin gradient)
+    ctx.shadowBlur=Storage.get("quality")==="low"?6:28; ctx.shadowColor=puckSkin[1];
     const g=ctx.createRadialGradient(puck.x-5,puck.y-5,2,puck.x,puck.y,puck.r);
-    g.addColorStop(0,"#ffffff"); g.addColorStop(0.4,"#bdf3ff"); g.addColorStop(1,"#3aa9ff");
+    g.addColorStop(0,puckSkin[0]); g.addColorStop(0.4,puckSkin[1]); g.addColorStop(1,puckSkin[2]);
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.arc(puck.x,puck.y,puck.r,0,Math.PI*2); ctx.fill();
     ctx.shadowBlur=0;
@@ -1779,8 +1999,10 @@ const Game = (() => {
     }
     // M — mute toggle (works anywhere)
     if (k==="m"){ toggleMute(); }
-    // R — restart the current match (preserving ranked)
-    if (k==="r" && (inGame||state==="paused")){ startMatch(mode,difficulty,{ranked}); }
+    // R — restart the current match (preserving ranked/practice)
+    if (k==="r" && (inGame||state==="paused")){ startMatch(mode,difficulty,{ranked,practice}); }
+    // Quick rematch on the victory screen (Enter or R)
+    if ((k==="enter"||k==="r") && state==="victory"){ startMatch(mode,difficulty,{ranked,practice}); }
     // Space / E — use active ability
     if ((k===" "||k==="e") && inGame){ useAbility(); }
     if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
@@ -1836,7 +2058,7 @@ const Game = (() => {
   return {
     startMatch, resize,
     pause:pauseGame, resume:resumeGame,
-    restart:()=>{ startMatch(mode,difficulty,{ranked}); },
+    restart:()=>{ startMatch(mode,difficulty,{ranked,practice}); },
     quitToMenu:()=>{
       state="menu";
       document.getElementById("hud").style.display="none";
@@ -1873,15 +2095,19 @@ const Game = (() => {
   });
 
   // Mode selection
-  let pendingMode="single";
+  let pendingPractice=false;
   document.getElementById("mode-single").addEventListener("click",()=>{
-    Audio.click(); pendingMode="single"; Storage.set("mode","single");
-    // preselect last difficulty
+    Audio.click(); pendingPractice=false; Storage.set("mode","single");
+    markDiff(Storage.get("difficulty"));
+    UI.show("diff");
+  });
+  document.getElementById("mode-practice").addEventListener("click",()=>{
+    Audio.click(); pendingPractice=true;
     markDiff(Storage.get("difficulty"));
     UI.show("diff");
   });
   document.getElementById("mode-multi").addEventListener("click",()=>{
-    Audio.click(); pendingMode="multi"; Storage.set("mode","multi");
+    Audio.click(); Storage.set("mode","multi");
     Game.startMatch("multi", Storage.get("difficulty"));
   });
 
@@ -1895,7 +2121,7 @@ const Game = (() => {
       const d=b.dataset.diff;
       Storage.set("difficulty",d);
       document.getElementById("set-diff").value=d;
-      Game.startMatch("single", d);
+      Game.startMatch("single", d, {practice:pendingPractice});
     });
   });
 
@@ -1926,44 +2152,53 @@ const Game = (() => {
   // ----- Skills / Locker -----
   let lockerReturn="main";
   const TYPE_LABELS={ active:"Active Ability (pick 1)", passive:"Passive Boosts (pick up to 2)",
-                      paddle:"Paddle Skins", trail:"Puck Trails" };
+                      paddle:"Paddle Skins", puck:"Puck Skins", trail:"Puck Trails", arena:"Arena Skins" };
+  function makeCard(opts){
+    // opts: {icon,name,desc,lockText,unlocked,equipped,onClick}
+    const card=document.createElement("div");
+    card.className="skill-card"+(opts.unlocked?"":" locked")+(opts.equipped?" equipped":"");
+    card.innerHTML=`<div class="skill-ico">${opts.icon}</div>
+      <div class="skill-meta">
+        <div class="skill-name">${opts.name}</div>
+        <div class="skill-desc">${opts.desc}</div>
+        ${opts.unlocked?"":`<div class="skill-lock">🔒 ${opts.lockText}</div>`}
+      </div>
+      ${opts.equipped?'<div class="skill-tag">EQUIPPED</div>':""}`;
+    if (opts.unlocked && opts.onClick) card.addEventListener("click",opts.onClick);
+    return card;
+  }
   function buildLocker(){
     const lo=Progression.loadout();
     const body=document.getElementById("locker-body");
     body.innerHTML="";
-    ["active","passive","paddle","trail"].forEach(type=>{
+    ["active","passive","paddle","puck","trail","arena"].forEach(type=>{
       const group=document.createElement("div"); group.className="locker-group";
       const h=document.createElement("h4"); h.textContent=TYPE_LABELS[type]; group.appendChild(h);
       const grid=document.createElement("div"); grid.className="skill-grid";
+      // Arena gets an extra "Auto (Rank)" card that follows your current tier
+      if (type==="arena"){
+        grid.appendChild(makeCard({ icon:"⛯", name:"Auto (Rank)",
+          desc:"Arena matches your current rank tier.", unlocked:true,
+          equipped: (!lo.arena||lo.arena==="auto"),
+          onClick:()=>{ Audio.click(); Progression.equipCosmetic("arena","auto"); buildLocker(); } }));
+      }
       Progression.list(type).forEach(s=>{
         const unlocked=Progression.isUnlocked(s.id);
         let equipped=false;
         if (type==="active") equipped = lo.active===s.id;
         else if (type==="passive") equipped = (lo.passives||[]).includes(s.id);
-        else if (type==="paddle") equipped = lo.paddle===s.id;
-        else if (type==="trail") equipped = lo.trail===s.id;
-        const card=document.createElement("div");
-        card.className="skill-card"+(unlocked?"":" locked")+(equipped?" equipped":"");
-        card.innerHTML=`<div class="skill-ico">${s.icon}</div>
-          <div class="skill-meta">
-            <div class="skill-name">${s.name}</div>
-            <div class="skill-desc">${s.desc}</div>
-            ${unlocked?"":`<div class="skill-lock">🔒 ${s.challenge}</div>`}
-          </div>
-          ${equipped?'<div class="skill-tag">EQUIPPED</div>':""}`;
-        if (unlocked){
-          card.addEventListener("click",()=>{
+        else equipped = lo[type]===s.id;
+        grid.appendChild(makeCard({ icon:s.icon, name:s.name, desc:s.desc, lockText:s.challenge,
+          unlocked, equipped,
+          onClick:()=>{
             Audio.click();
             if (type==="active") Progression.equipActive(s.id);
             else if (type==="passive"){
               if (!Progression.equipPassive(s.id)) showLockerToast("Max 2 passives — unequip one first");
             }
-            else if (type==="paddle") Progression.equipCosmetic("paddle",s.id);
-            else if (type==="trail") Progression.equipCosmetic("trail",s.id);
+            else Progression.equipCosmetic(type,s.id);
             buildLocker();
-          });
-        }
-        grid.appendChild(card);
+          } }));
       });
       group.appendChild(grid); body.appendChild(group);
     });
@@ -1975,20 +2210,66 @@ const Game = (() => {
   document.getElementById("main-skills").addEventListener("click",()=>{ Audio.click(); lockerReturn="main"; buildLocker(); UI.show("locker"); });
   document.getElementById("locker-back").addEventListener("click",()=>{ Audio.click(); UI.show(lockerReturn); });
 
+  // ----- Profile (career stats + achievements) -----
+  function openProfile(){
+    const g=Storage.get("gamesPlayed")||0, w=Storage.get("totalWins")||0, l=Storage.get("totalLosses")||0;
+    const wr=g>0 ? Math.round(w/g*100) : 0;
+    const badge=document.getElementById("profile-rank");
+    const tier=Progression.tierFor(Storage.get("mmr"));
+    badge.textContent=tier.name+" · "+Storage.get("mmr")+" MMR";
+    badge.style.background=`linear-gradient(90deg,${tier.color},#fff)`;
+    badge.style.webkitBackgroundClip="text"; badge.style.backgroundClip="text";
+    const stats=[
+      ["Games",g],["Wins",w],["Losses",l],["Win %",wr+"%"],
+      ["Goals",Storage.get("totalGoals")||0],["Best Streak",Storage.get("bestStreak")||0],
+      ["Peak MMR",Storage.get("peakMmr")||0],["Ranked",`${Storage.get("rankWins")||0}-${Storage.get("rankLosses")||0}`]
+    ];
+    document.getElementById("stat-grid").innerHTML =
+      stats.map(s=>`<div class="stat-card"><div class="stat-val">${s[1]}</div><div class="stat-lbl">${s[0]}</div></div>`).join("");
+    // achievements: every skill/cosmetic + its unlock state
+    const all=Progression.SKILLS;
+    const have=all.filter(s=>Progression.isUnlocked(s.id)).length;
+    document.getElementById("ach-count").textContent=`${have}/${all.length} unlocked`;
+    document.getElementById("ach-body").innerHTML = all.map(s=>{
+      const done=Progression.isUnlocked(s.id);
+      return `<div class="ach-row${done?" done":""}">
+        <div class="ach-ico">${s.icon}</div>
+        <div class="ach-meta"><div class="ach-name">${s.name}</div>
+          <div class="ach-cond">${done?"Unlocked":s.challenge}</div></div>
+        <div class="ach-state">${done?"✓":"🔒"}</div></div>`;
+    }).join("");
+    UI.show("profile");
+  }
+  document.getElementById("main-profile").addEventListener("click",()=>{ Audio.click(); openProfile(); });
+  document.getElementById("profile-locker").addEventListener("click",()=>{ Audio.click(); lockerReturn="profile"; buildLocker(); UI.show("locker"); });
+
   // ----- Settings widgets -----
   const vol=document.getElementById("set-vol");
   const sound=document.getElementById("set-sound");
+  const musicVol=document.getElementById("set-music-vol");
+  const musicTog=document.getElementById("set-music");
   const speed=document.getElementById("set-speed");
+  const matchlen=document.getElementById("set-matchlen");
   const quality=document.getElementById("set-quality");
   const diffSel=document.getElementById("set-diff");
+  const motion=document.getElementById("set-motion");
+  const haptics=document.getElementById("set-haptics");
+  const cb=document.getElementById("set-cb");
   const fs=document.getElementById("set-fs");
 
   // initialise from storage
   vol.value=Math.round(Storage.get("volume")*100);
   sound.classList.toggle("on",Storage.get("sound"));
+  musicVol.value=Math.round(Storage.get("musicVolume")*100);
+  musicTog.classList.toggle("on",Storage.get("music"));
   speed.value=Math.round(Storage.get("speed")*100);
+  matchlen.value=String(Storage.get("matchLen"));
   quality.value=Storage.get("quality");
   diffSel.value=Storage.get("difficulty");
+  motion.classList.toggle("on",Storage.get("reducedMotion"));
+  haptics.classList.toggle("on",Storage.get("haptics"));
+  cb.classList.toggle("on",Storage.get("colorblind"));
+  applyColorblindClass();
 
   vol.addEventListener("input",()=>{ Storage.set("volume",vol.value/100); Audio.applyVolume(); });
   vol.addEventListener("change",()=>Audio.click());
@@ -1996,15 +2277,32 @@ const Game = (() => {
     const on=!Storage.get("sound"); Storage.set("sound",on);
     sound.classList.toggle("on",on); Audio.applyVolume(); if(on) Audio.click();
   });
+  musicVol.addEventListener("input",()=>{ Storage.set("musicVolume",musicVol.value/100); Audio.applyMusicVolume(); });
+  musicTog.addEventListener("click",()=>{
+    const on=!Storage.get("music"); Storage.set("music",on);
+    musicTog.classList.toggle("on",on); Audio.applyMusicVolume(); if(on){ Audio.startMusic(); Audio.click(); }
+  });
   speed.addEventListener("input",()=>Storage.set("speed",speed.value/100));
+  matchlen.addEventListener("change",()=>{ Storage.set("matchLen",parseInt(matchlen.value,10)); Audio.click(); });
   quality.addEventListener("change",()=>{ Storage.set("quality",quality.value); Game.resize(); Audio.click(); });
   diffSel.addEventListener("change",()=>{ Storage.set("difficulty",diffSel.value); Audio.click(); });
+  motion.addEventListener("click",()=>{ const on=!Storage.get("reducedMotion"); Storage.set("reducedMotion",on); motion.classList.toggle("on",on); Audio.click(); });
+  haptics.addEventListener("click",()=>{ const on=!Storage.get("haptics"); Storage.set("haptics",on); haptics.classList.toggle("on",on); if(on&&navigator.vibrate)navigator.vibrate(20); Audio.click(); });
+  cb.addEventListener("click",()=>{ const on=!Storage.get("colorblind"); Storage.set("colorblind",on); cb.classList.toggle("on",on); applyColorblindClass(); Audio.click(); });
   fs.addEventListener("click",()=>{
     Audio.click();
     if (!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); }
     else { document.exitFullscreen?.(); }
   });
   document.addEventListener("fullscreenchange",()=>{ fs.classList.toggle("on",!!document.fullscreenElement); });
+  document.getElementById("set-reset").addEventListener("click",()=>{
+    Audio.click();
+    if (confirm("Reset ALL progress — ranks, skills, cosmetics and stats? This cannot be undone.")){
+      try{ localStorage.removeItem("neonHockey.v1"); }catch(e){}
+      location.reload();
+    }
+  });
+  function applyColorblindClass(){ document.body.classList.toggle("cb", Storage.get("colorblind")); }
 
   // settings back — return to whatever makes sense
   document.getElementById("settings-back").addEventListener("click",()=>{
@@ -2023,8 +2321,8 @@ const Game = (() => {
   document.getElementById("win-again").addEventListener("click",()=>{ Audio.click(); Game.restart(); });
   document.getElementById("win-menu").addEventListener("click",()=>{ Audio.click(); Game.quitToMenu(); });
 
-  // initial audio unlock on first interaction
-  window.addEventListener("pointerdown",()=>{ Audio.init(); Audio.resume(); },{once:true});
+  // initial audio unlock on first interaction (also kicks off background music)
+  window.addEventListener("pointerdown",()=>{ Audio.init(); Audio.resume(); if(Storage.get("music")) Audio.startMusic(); },{once:true});
 
   // show saved record on the main menu at startup
   Game.refreshMenu();
