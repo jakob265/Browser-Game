@@ -836,7 +836,7 @@ const Game = (() => {
     if (useMouse && pointer.active){
       tx=pointer.x; ty=pointer.y;
     } else if (kbset){
-      const spd = 720*dt;
+      const spd = 980*dt;
       let mx=0,my=0;
       if (keys[kbset.up]) my-=1;
       if (keys[kbset.down]) my+=1;
@@ -844,8 +844,9 @@ const Game = (() => {
       if (keys[kbset.right]) mx+=1;
       if (mx||my){ const l=Math.hypot(mx,my); tx+=mx/l*spd; ty+=my/l*spd; }
     }
-    // smooth follow (prevents jitter, frame-rate independent)
-    const follow = useMouse && pointer.active ? 1-Math.pow(0.001,dt) : 1;
+    // smooth follow (prevents jitter, frame-rate independent).
+    // Small time-constant => paddle tracks the cursor almost 1:1 for responsive control.
+    const follow = useMouse && pointer.active ? 1-Math.exp(-dt/0.010) : 1;
     pad.x += (tx-pad.x)*follow;
     pad.y += (ty-pad.y)*follow;
     clampPaddle(pad,isTop);
