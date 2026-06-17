@@ -182,8 +182,11 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
 .score-card.p1 .score-val{color:var(--cyan);text-shadow:0 0 18px rgba(33,230,255,.6);}
 .score-card.p2 .score-val{color:var(--magenta);text-shadow:0 0 18px rgba(255,43,214,.6);}
 .score-pop{animation:scorePop .5s ease;}
+.score-card.matchpoint{animation:mpPulse 1s ease-in-out infinite;}
+@keyframes mpPulse{0%,100%{box-shadow:var(--shadow)}50%{box-shadow:0 0 0 2px var(--amber),0 0 30px rgba(255,207,77,.55)}}
 #hud-center{display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:auto;}
 #timer{font-size:13px;letter-spacing:2px;color:var(--muted);font-variant-numeric:tabular-nums;}
+#mode-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(142,160,196,.7);}
 #pause-btn{
   pointer-events:auto;width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;
   background:rgba(8,12,28,.55);border:1px solid var(--glass-brd);cursor:pointer;color:var(--text);font-size:18px;
@@ -250,6 +253,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
   <div id="hud-center">
     <div id="pause-btn" title="Pause (Esc)">❚❚</div>
     <div id="timer">00:00</div>
+    <div id="mode-label"></div>
   </div>
   <div class="score-card p2"><span class="score-name" id="p2-name">CPU</span><span class="score-val" id="p2-score">0</span></div>
 </div>
@@ -270,7 +274,7 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <button class="btn" data-go="settings">⚙ SETTINGS</button>
       <button class="btn ghost" data-go="instructions">❔ INSTRUCTIONS</button>
     </div>
-    <div class="credit">Best of 7 • Pure HTML / CSS / JS</div>
+    <div class="credit" id="main-record">Best of 7 • Pure HTML / CSS / JS</div>
   </div>
 </div>
 
@@ -344,7 +348,8 @@ select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border
       <b>Desktop — Player 1:</b> move the <b>mouse</b> over the table, or use <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> arrow keys.<br>
       <b>Multiplayer — Player 2:</b> <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> keys.<br>
       <b>Mobile:</b> drag your finger on your half of the table.<br>
-      <b>Pause:</b> <span class="key">Esc</span> or the ❚❚ button.
+      <b>Shortcuts:</b> <span class="key">Esc</span>/<span class="key">P</span> pause · <span class="key">R</span> restart · <span class="key">M</span> mute.<br>
+      The game auto-pauses if you switch tabs, and a stalled puck is automatically nudged back into play.
       <h3>Rules</h3>
       Paddles cannot cross the center line and cannot leave the table. After every goal a short countdown resets the puck to center.
       <h3>Game Modes</h3>
@@ -620,6 +625,8 @@ const Game = (() => {
     lastServe = "p1";
     document.getElementById("p1-name").textContent = "P1";
     document.getElementById("p2-name").textContent = mode==="single" ? "CPU" : "P2";
+    document.getElementById("mode-label").textContent =
+      mode==="single" ? "SINGLE • "+difficulty.toUpperCase() : "MULTIPLAYER";
     updateScoreUI();
     document.getElementById("hud").style.display = "flex";
     document.getElementById("game-wrap").style.display = "flex";
@@ -667,6 +674,10 @@ const Game = (() => {
     if (scores[scorer] >= WIN_SCORE){ victory(scorer); return; }
     state = "goal";
     showToast(scorer==="p1" ? "GOAL!" : (mode==="single"?"CPU SCORES":"P2 SCORES"));
+    // announce match point when the scorer is now one goal away from winning
+    if (scores[scorer]===WIN_SCORE-1){
+      setTimeout(()=>{ if(state==="goal") showToast("MATCH POINT"); }, 750);
+    }
     setTimeout(()=>{ if(state==="goal"){ resetPositions(); beginCountdown(); } }, 1400);
   }
 
@@ -711,6 +722,9 @@ const Game = (() => {
     // The score-pop animation is triggered by a MutationObserver (see scorePopPatch).
     document.getElementById("p1-score").textContent=scores.p1;
     document.getElementById("p2-score").textContent=scores.p2;
+    // pulse a score card when its player is one point from winning (match point)
+    document.querySelector(".score-card.p1").classList.toggle("matchpoint", scores.p1===WIN_SCORE-1);
+    document.querySelector(".score-card.p2").classList.toggle("matchpoint", scores.p2===WIN_SCORE-1);
   }
 
   let toastTimer=0;
@@ -799,6 +813,27 @@ const Game = (() => {
     puck.vx*=f; puck.vy*=f;
     if (Math.abs(puck.vx)<2) puck.vx=0;
     if (Math.abs(puck.vy)<2) puck.vy=0;
+  }
+
+  // QOL: if the puck sits nearly still for too long, gently nudge it back into
+  // play so a round can never stall (e.g. dead puck pinned against a wall).
+  let puckIdle = 0;
+  function rescueStuckPuck(dt, speedScale){
+    const sp = Math.hypot(puck.vx,puck.vy);
+    if (sp < 35){
+      puckIdle += dt;
+      if (puckIdle > 2.2){
+        // push toward table centre with a little randomness
+        const ang = Math.atan2(FH/2-puck.y, FW/2-puck.x) + (Math.random()-0.5)*0.8;
+        const k = 230*speedScale;
+        puck.vx = Math.cos(ang)*k; puck.vy = Math.sin(ang)*k;
+        puckIdle = 0;
+        Audio.wall();
+        particles.emit(puck.x,puck.y,{count:10,speed:160,life:0.5,size:3,color:"#3dff9e"});
+      }
+    } else {
+      puckIdle = 0;
+    }
   }
 
   function collideWalls(){
@@ -952,8 +987,9 @@ const Game = (() => {
     }
     else if (state==="play"){
       movePaddles(dt, speedScale, true);
-      // scale puck velocity influence by game speed via dt? keep physics, apply speed to integration
+      // game speed scales the integration step so physics stay consistent
       integratePuck(dt*speedScale);
+      rescueStuckPuck(dt, speedScale);
     }
     else if (state==="goal"){
       movePaddles(dt, speedScale, false);
@@ -1189,15 +1225,40 @@ const Game = (() => {
   window.addEventListener("keydown",e=>{
     const k=e.key.toLowerCase();
     keys[k]=true;
-    if (k==="escape"){
-      if (state==="play"||state==="countdown"||state==="goal") pauseGame();
+    const inGame = (state==="play"||state==="countdown"||state==="goal");
+    // Esc / P — pause toggle
+    if (k==="escape"||k==="p"){
+      if (inGame) pauseGame();
       else if (state==="paused") resumeGame();
     }
+    // M — mute toggle (works anywhere)
+    if (k==="m"){ toggleMute(); }
+    // R — restart the current match
+    if (k==="r" && (inGame||state==="paused")){ startMatch(mode,difficulty); }
     if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
   });
   window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
 
   window.addEventListener("resize",()=>{ if(mode!=="menu") resize(); });
+
+  // QOL: show the player's accumulated record on the main menu
+  function updateMenuRecord(){
+    const el=document.getElementById("main-record"); if(!el) return;
+    const wins=Storage.get("bestWins")||0;
+    el.textContent = wins>0 ? `Wins vs CPU: ${wins} • Best of 7` : "Best of 7 • Pure HTML / CSS / JS";
+  }
+
+  // QOL: toggle mute and keep the settings UI + audio in sync
+  function toggleMute(){
+    const on=!Storage.get("sound"); Storage.set("sound",on);
+    const el=document.getElementById("set-sound"); if(el) el.classList.toggle("on",on);
+    Audio.applyVolume(); if(on) Audio.click();
+    showToast(on?"SOUND ON":"MUTED");
+  }
+
+  // QOL: auto-pause when the tab/window loses focus so play never runs unattended
+  document.addEventListener("visibilitychange",()=>{ if(document.hidden) pauseGame(); });
+  window.addEventListener("blur",()=>pauseGame());
 
   // ---------- Pause / resume ----------
   function pauseGame(){
@@ -1224,8 +1285,10 @@ const Game = (() => {
       document.getElementById("game-wrap").style.display="none";
       document.getElementById("countdown").style.display="none";
       particles.clear();
+      updateMenuRecord();
       UI.show("main");
     },
+    refreshMenu:updateMenuRecord,
     get state(){return state;},
     set state(v){state=v;},
     get mode(){return mode;},
@@ -1327,6 +1390,9 @@ const Game = (() => {
 
   // initial audio unlock on first interaction
   window.addEventListener("pointerdown",()=>{ Audio.init(); Audio.resume(); },{once:true});
+
+  // show saved record on the main menu at startup
+  Game.refreshMenu();
 })();
 
 /* ----------------------------------------------------------------------
