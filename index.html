@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#05060d" />
+<title>NEON HOCKEY — Air Hockey</title>
+<style>
+/* =====================================================================
+   NEON HOCKEY  —  single-file Air Hockey game
+   Sections:
+     1. Design tokens & base
+     2. Layout / canvas
+     3. Glass panels & menus
+     4. Buttons & controls
+     5. HUD / score
+     6. Overlays (countdown, pause, victory)
+     7. Animations
+     8. Responsive
+   ===================================================================== */
+
+/* ---------- 1. Design tokens & base ---------- */
+:root{
+  --bg-0:#05060d;
+  --bg-1:#0a0e1f;
+  --cyan:#21e6ff;
+  --magenta:#ff2bd6;
+  --violet:#8a5cff;
+  --green:#3dff9e;
+  --amber:#ffcf4d;
+  --text:#e9f3ff;
+  --muted:#8ea0c4;
+  --glass:rgba(18,26,52,0.55);
+  --glass-brd:rgba(120,170,255,0.22);
+  --shadow:0 18px 60px rgba(0,0,0,0.55);
+  --font:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;margin:0;}
+body{
+  font-family:var(--font);
+  color:var(--text);
+  background:
+    radial-gradient(1200px 800px at 20% -10%, rgba(33,230,255,0.12), transparent 60%),
+    radial-gradient(1000px 700px at 100% 110%, rgba(255,43,214,0.12), transparent 60%),
+    linear-gradient(160deg,var(--bg-1),var(--bg-0));
+  overflow:hidden;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+}
+
+/* Animated drifting background grid */
+#bg-fx{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.6;}
+
+/* ---------- 2. Layout / canvas ---------- */
+#stage{position:fixed;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;}
+#game-wrap{position:relative;display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;}
+#game{
+  display:block;
+  border-radius:18px;
+  box-shadow:0 0 0 2px rgba(120,170,255,0.18), 0 0 60px rgba(33,230,255,0.10), var(--shadow);
+  background:#070a16;
+  touch-action:none;
+}
+
+/* ---------- 3. Glass panels & menus ---------- */
+.screen{
+  position:fixed;inset:0;z-index:5;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+  opacity:0;visibility:hidden;
+  transition:opacity .45s ease, visibility .45s;
+}
+.screen.active{opacity:1;visibility:visible;}
+.panel{
+  position:relative;
+  width:min(560px,94vw);
+  max-height:92vh;overflow:auto;
+  padding:34px 30px;
+  background:var(--glass);
+  border:1px solid var(--glass-brd);
+  border-radius:22px;
+  backdrop-filter:blur(18px) saturate(1.2);
+  -webkit-backdrop-filter:blur(18px) saturate(1.2);
+  box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  text-align:center;
+  transform:translateY(18px) scale(.98);
+  transition:transform .45s cubic-bezier(.2,.9,.25,1);
+}
+.screen.active .panel{transform:translateY(0) scale(1);}
+.panel::before{
+  content:"";position:absolute;inset:0;border-radius:22px;padding:1px;
+  background:linear-gradient(135deg,rgba(33,230,255,.5),transparent 40%,rgba(255,43,214,.5));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.55;
+}
+.title{
+  font-size:clamp(34px,7vw,58px);
+  font-weight:800;letter-spacing:3px;margin:0 0 6px;
+  background:linear-gradient(90deg,var(--cyan),var(--violet),var(--magenta));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 18px rgba(33,230,255,.35));
+}
+.subtitle{color:var(--muted);letter-spacing:6px;text-transform:uppercase;font-size:12px;margin-bottom:26px;}
+.section-head{font-size:13px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);margin:0 0 18px;}
+.stack{display:flex;flex-direction:column;gap:14px;align-items:stretch;}
+.row{display:flex;gap:14px;}
+.row>*{flex:1;}
+
+/* ---------- 4. Buttons & controls ---------- */
+.btn{
+  position:relative;
+  font-family:inherit;font-weight:700;letter-spacing:2px;
+  font-size:16px;color:var(--text);
+  padding:16px 22px;border-radius:14px;cursor:pointer;
+  border:1px solid var(--glass-brd);
+  background:linear-gradient(180deg,rgba(40,56,104,.55),rgba(20,28,56,.55));
+  transition:transform .12s ease, box-shadow .25s ease, background .25s ease, border-color .25s;
+  overflow:hidden;
+}
+.btn:hover{transform:translateY(-2px);border-color:var(--cyan);box-shadow:0 8px 30px rgba(33,230,255,.22);}
+.btn:active{transform:translateY(1px) scale(.985);}
+.btn::after{
+  content:"";position:absolute;inset:0;background:radial-gradient(120px 60px at var(--mx,50%) var(--my,50%),rgba(33,230,255,.25),transparent 70%);
+  opacity:0;transition:opacity .3s;
+}
+.btn:hover::after{opacity:1;}
+.btn.primary{
+  background:linear-gradient(180deg,rgba(33,230,255,.28),rgba(138,92,255,.28));
+  border-color:rgba(33,230,255,.5);
+}
+.btn.primary:hover{box-shadow:0 10px 36px rgba(33,230,255,.35);}
+.btn.magenta{background:linear-gradient(180deg,rgba(255,43,214,.26),rgba(138,92,255,.22));border-color:rgba(255,43,214,.45);}
+.btn.magenta:hover{box-shadow:0 10px 36px rgba(255,43,214,.3);border-color:var(--magenta);}
+.btn.ghost{background:rgba(255,255,255,.04);}
+.btn.small{font-size:13px;padding:11px 16px;letter-spacing:1px;}
+.btn .sub{display:block;font-size:11px;font-weight:600;letter-spacing:1px;color:var(--muted);margin-top:6px;}
+.btn.selected{border-color:var(--green);box-shadow:0 0 0 1px var(--green),0 8px 28px rgba(61,255,158,.25);}
+
+/* Settings rows */
+.setting{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:13px 4px;border-bottom:1px solid rgba(120,170,255,.10);text-align:left;}
+.setting:last-child{border-bottom:none;}
+.setting label{font-size:14px;letter-spacing:1px;color:var(--text);}
+.setting .hint{font-size:11px;color:var(--muted);display:block;margin-top:3px;}
+input[type=range]{-webkit-appearance:none;appearance:none;width:150px;height:6px;border-radius:6px;
+  background:linear-gradient(90deg,var(--cyan),var(--violet));outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:#fff;cursor:pointer;box-shadow:0 0 10px rgba(33,230,255,.9);}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border:none;border-radius:50%;background:#fff;cursor:pointer;box-shadow:0 0 10px rgba(33,230,255,.9);}
+select{font-family:inherit;color:var(--text);background:rgba(10,16,34,.9);border:1px solid var(--glass-brd);
+  border-radius:10px;padding:9px 12px;font-size:13px;letter-spacing:1px;cursor:pointer;}
+.toggle{position:relative;width:54px;height:28px;border-radius:30px;border:1px solid var(--glass-brd);
+  background:rgba(10,16,34,.8);cursor:pointer;transition:background .25s;flex:none;}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:var(--muted);transition:transform .25s,background .25s;}
+.toggle.on{background:linear-gradient(90deg,rgba(33,230,255,.5),rgba(61,255,158,.5));}
+.toggle.on::after{transform:translateX(26px);background:#fff;box-shadow:0 0 10px rgba(61,255,158,.8);}
+
+/* Instructions text blocks */
+.doc{text-align:left;color:var(--muted);font-size:14px;line-height:1.65;}
+.doc h3{color:var(--cyan);font-size:14px;letter-spacing:2px;text-transform:uppercase;margin:18px 0 6px;}
+.doc b{color:var(--text);}
+.doc .key{display:inline-block;min-width:22px;text-align:center;padding:2px 7px;margin:0 2px;border-radius:6px;
+  background:rgba(120,170,255,.12);border:1px solid var(--glass-brd);color:var(--text);font-size:12px;}
+
+/* ---------- 5. HUD / score ---------- */
+#hud{
+  position:fixed;top:0;left:0;right:0;z-index:3;
+  display:none;align-items:center;justify-content:space-between;
+  padding:14px 18px;pointer-events:none;
+}
+.score-card{
+  display:flex;flex-direction:column;align-items:center;min-width:120px;
+  padding:8px 18px;border-radius:16px;
+  background:rgba(8,12,28,.5);border:1px solid var(--glass-brd);
+  backdrop-filter:blur(8px);box-shadow:var(--shadow);
+}
+.score-name{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);}
+.score-val{font-size:46px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+.score-card.p1 .score-val{color:var(--cyan);text-shadow:0 0 18px rgba(33,230,255,.6);}
+.score-card.p2 .score-val{color:var(--magenta);text-shadow:0 0 18px rgba(255,43,214,.6);}
+.score-pop{animation:scorePop .5s ease;}
+#hud-center{display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:auto;}
+#timer{font-size:13px;letter-spacing:2px;color:var(--muted);font-variant-numeric:tabular-nums;}
+#pause-btn{
+  pointer-events:auto;width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:rgba(8,12,28,.55);border:1px solid var(--glass-brd);cursor:pointer;color:var(--text);font-size:18px;
+  transition:transform .12s, border-color .2s;
+}
+#pause-btn:hover{transform:scale(1.06);border-color:var(--cyan);}
+
+/* ---------- 6. Overlays ---------- */
+#countdown{
+  position:fixed;inset:0;z-index:4;display:none;align-items:center;justify-content:center;pointer-events:none;
+}
+#countdown .cd-num{
+  font-size:clamp(90px,22vw,200px);font-weight:900;letter-spacing:4px;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 30px rgba(33,230,255,.5));
+}
+.cd-anim{animation:cdPulse .9s ease;}
+.toast{
+  position:fixed;left:50%;top:38%;transform:translateX(-50%);z-index:6;
+  font-size:clamp(28px,6vw,52px);font-weight:800;letter-spacing:3px;
+  color:#fff;text-shadow:0 0 24px rgba(33,230,255,.7);pointer-events:none;opacity:0;
+}
+.toast.show{animation:toastPop 1.2s ease;}
+
+/* Victory confetti handled on canvas; trophy styling */
+.trophy{font-size:64px;filter:drop-shadow(0 0 24px var(--amber));margin-bottom:6px;}
+.win-name{font-size:clamp(30px,6vw,46px);font-weight:800;letter-spacing:2px;margin:4px 0;}
+.win-score{font-size:40px;font-weight:800;letter-spacing:6px;margin:8px 0 4px;font-variant-numeric:tabular-nums;}
+.win-best{color:var(--muted);font-size:13px;letter-spacing:2px;margin-bottom:18px;}
+
+/* ---------- 7. Animations ---------- */
+@keyframes scorePop{0%{transform:scale(1)}35%{transform:scale(1.5)}100%{transform:scale(1)}}
+@keyframes cdPulse{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1)}80%{opacity:1;transform:scale(1.05)}100%{opacity:0;transform:scale(1.3)}}
+@keyframes toastPop{0%{opacity:0;transform:translateX(-50%) scale(.6)}20%{opacity:1;transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1.1)}}
+@keyframes floatUp{to{transform:translateY(-120vh);opacity:0}}
+.fade-in{animation:fadeIn .5s ease both;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ---------- 8. Responsive ---------- */
+@media (max-width:560px){
+  .panel{padding:26px 18px;}
+  .row{flex-direction:column;}
+  .score-card{min-width:92px;padding:6px 12px;}
+  .score-val{font-size:36px;}
+}
+.hidden{display:none !important;}
+.credit{margin-top:22px;font-size:11px;letter-spacing:2px;color:rgba(142,160,196,.6);}
+</style>
+</head>
+<body>
+<canvas id="bg-fx"></canvas>
+
+<!-- ===================== GAME STAGE ===================== -->
+<div id="stage">
+  <div id="game-wrap">
+    <canvas id="game"></canvas>
+  </div>
+</div>
+
+<!-- ===================== HUD ===================== -->
+<div id="hud">
+  <div class="score-card p1"><span class="score-name" id="p1-name">You</span><span class="score-val" id="p1-score">0</span></div>
+  <div id="hud-center">
+    <div id="pause-btn" title="Pause (Esc)">❚❚</div>
+    <div id="timer">00:00</div>
+  </div>
+  <div class="score-card p2"><span class="score-name" id="p2-name">CPU</span><span class="score-val" id="p2-score">0</span></div>
+</div>
+
+<!-- ===================== COUNTDOWN ===================== -->
+<div id="countdown"><div class="cd-num" id="cd-num">3</div></div>
+<div class="toast" id="toast"></div>
+
+<!-- ===================== SCREENS ===================== -->
+
+<!-- Main Menu -->
+<div class="screen active" id="screen-main">
+  <div class="panel">
+    <h1 class="title">NEON HOCKEY</h1>
+    <div class="subtitle">Air Hockey Arena</div>
+    <div class="stack">
+      <button class="btn primary" data-go="mode">▶ PLAY</button>
+      <button class="btn" data-go="settings">⚙ SETTINGS</button>
+      <button class="btn ghost" data-go="instructions">❔ INSTRUCTIONS</button>
+    </div>
+    <div class="credit">Best of 7 • Pure HTML / CSS / JS</div>
+  </div>
+</div>
+
+<!-- Mode Selection -->
+<div class="screen" id="screen-mode">
+  <div class="panel">
+    <h2 class="section-head">Select Mode</h2>
+    <div class="stack">
+      <button class="btn primary" id="mode-single">SINGLE PLAYER<span class="sub">Battle the AI</span></button>
+      <button class="btn magenta" id="mode-multi">LOCAL MULTIPLAYER<span class="sub">Mouse vs WASD</span></button>
+      <button class="btn ghost small" data-go="main">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Difficulty Selection -->
+<div class="screen" id="screen-diff">
+  <div class="panel">
+    <h2 class="section-head">Select Difficulty</h2>
+    <div class="stack">
+      <button class="btn" data-diff="easy">EASY<span class="sub">Slow & forgiving AI</span></button>
+      <button class="btn" data-diff="medium">MEDIUM<span class="sub">Balanced & predictive</span></button>
+      <button class="btn" data-diff="hard">HARD<span class="sub">Fast, sharp prediction</span></button>
+      <button class="btn ghost small" data-go="mode">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="screen" id="screen-settings">
+  <div class="panel">
+    <h2 class="section-head">Settings</h2>
+    <div class="setting">
+      <div><label>Master Volume</label><span class="hint">Overall loudness</span></div>
+      <input type="range" id="set-vol" min="0" max="100" value="70">
+    </div>
+    <div class="setting">
+      <div><label>Sound</label><span class="hint">Mute / unmute all audio</span></div>
+      <div class="toggle on" id="set-sound"></div>
+    </div>
+    <div class="setting">
+      <div><label>Game Speed</label><span class="hint">Puck & paddle tempo</span></div>
+      <input type="range" id="set-speed" min="70" max="140" value="100">
+    </div>
+    <div class="setting">
+      <div><label>Graphics Quality</label><span class="hint">Particles & effects</span></div>
+      <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high" selected>High</option></select>
+    </div>
+    <div class="setting">
+      <div><label>AI Difficulty</label><span class="hint">Default for single player</span></div>
+      <select id="set-diff"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select>
+    </div>
+    <div class="setting">
+      <div><label>Fullscreen</label><span class="hint">Toggle immersive mode</span></div>
+      <div class="toggle" id="set-fs"></div>
+    </div>
+    <div class="stack" style="margin-top:22px;">
+      <button class="btn ghost small" id="settings-back">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Instructions -->
+<div class="screen" id="screen-instructions">
+  <div class="panel">
+    <h2 class="section-head">How To Play</h2>
+    <div class="doc">
+      <h3>Goal</h3>
+      Knock the puck into your opponent's goal. First to <b>7 points</b> wins the match.
+      <h3>Controls</h3>
+      <b>Desktop — Player 1:</b> move the <b>mouse</b> over the table, or use <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> arrow keys.<br>
+      <b>Multiplayer — Player 2:</b> <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> keys.<br>
+      <b>Mobile:</b> drag your finger on your half of the table.<br>
+      <b>Pause:</b> <span class="key">Esc</span> or the ❚❚ button.
+      <h3>Rules</h3>
+      Paddles cannot cross the center line and cannot leave the table. After every goal a short countdown resets the puck to center.
+      <h3>Game Modes</h3>
+      <b>Single Player</b> — compete against an adaptive AI.<br>
+      <b>Local Multiplayer</b> — two players share one device.
+      <h3>Difficulty</h3>
+      <b>Easy</b> — slow paddle, delayed reactions, loose aim.<br>
+      <b>Medium</b> — balanced speed with moderate puck prediction.<br>
+      <b>Hard</b> — fast reactions and advanced trajectory prediction.
+    </div>
+    <div class="stack" style="margin-top:20px;">
+      <button class="btn ghost small" data-go="main">← BACK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pause -->
+<div class="screen" id="screen-pause">
+  <div class="panel">
+    <h2 class="section-head">Paused</h2>
+    <div class="stack">
+      <button class="btn primary" id="pause-resume">▶ RESUME</button>
+      <button class="btn" id="pause-restart">↻ RESTART MATCH</button>
+      <button class="btn ghost" id="pause-settings">⚙ SETTINGS</button>
+      <button class="btn magenta" id="pause-menu">⌂ MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- Victory -->
+<div class="screen" id="screen-victory">
+  <div class="panel">
+    <div class="trophy">🏆</div>
+    <div class="win-name" id="win-name">You Win!</div>
+    <div class="win-score" id="win-score">7 — 0</div>
+    <div class="win-best" id="win-best"></div>
+    <div class="stack">
+      <button class="btn primary" id="win-again">▶ PLAY AGAIN</button>
+      <button class="btn magenta" id="win-menu">⌂ MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   NEON HOCKEY — game logic
+   Modules:
+     - Storage        : localStorage persistence
+     - Audio          : Web Audio synthesised SFX
+     - UI             : screen routing & widgets
+     - Particles      : pooled particle system
+     - Game           : physics, AI, rendering, loop
+   ===================================================================== */
+
+/* ----------------------------------------------------------------------
+   STORAGE — settings & persistence
+---------------------------------------------------------------------- */
+const Storage = (() => {
+  const KEY = "neonHockey.v1";
+  const defaults = {
+    volume: 0.7,
+    sound: true,
+    speed: 1.0,
+    quality: "high",
+    difficulty: "medium",
+    mode: "single",
+    bestWins: 0,
+    bestStreak: 0
+  };
+  let data = {...defaults};
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) data = {...defaults, ...JSON.parse(raw)};
+  } catch(e){ /* storage unavailable — use defaults */ }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){} }
+  return {
+    get:(k)=>data[k],
+    set:(k,v)=>{ data[k]=v; save(); },
+    all:()=>data
+  };
+})();
+
+/* ----------------------------------------------------------------------
+   AUDIO — all SFX generated with the Web Audio API
+---------------------------------------------------------------------- */
+const Audio = (() => {
+  let ctx = null, master = null;
+  function ensure(){
+    if (ctx) return;
+    try{
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = Storage.get("sound") ? Storage.get("volume") : 0;
+      master.connect(ctx.destination);
+    }catch(e){ ctx = null; }
+  }
+  function resume(){ if (ctx && ctx.state === "suspended") ctx.resume(); }
+  function applyVolume(){
+    if (!master) return;
+    master.gain.setTargetAtTime(Storage.get("sound") ? Storage.get("volume") : 0, ctx.currentTime, 0.02);
+  }
+  // Generic tone with envelope
+  function tone(freq, dur, type="sine", vol=0.5, glideTo=null){
+    ensure(); if (!ctx) return; resume();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, ctx.currentTime + dur);
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    o.connect(g); g.connect(master); o.start(); o.stop(ctx.currentTime + dur + 0.02);
+  }
+  // Short noise burst (for impacts)
+  function noise(dur, vol=0.4, freq=1200){
+    ensure(); if (!ctx) return; resume();
+    const n = ctx.createBufferSource();
+    const buf = ctx.createBuffer(1, ctx.sampleRate*dur, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*(1-i/d.length);
+    n.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type="bandpass"; f.frequency.value=freq; f.Q.value=0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    n.connect(f); f.connect(g); g.connect(master); n.start(); n.stop(ctx.currentTime + dur);
+  }
+  return {
+    init:ensure, resume, applyVolume,
+    paddle:(power=1)=>{ tone(220+power*180, 0.12, "triangle", 0.45); noise(0.05, 0.25, 800+power*600); },
+    wall:()=>{ tone(160, 0.09, "sine", 0.30, 110); noise(0.04, 0.15, 500); },
+    goal:()=>{ tone(523,0.16,"sawtooth",0.4,784); setTimeout(()=>tone(659,0.2,"sawtooth",0.4,988),90); noise(0.25,0.3,400); },
+    count:(last=false)=>{ tone(last?880:440, last?0.3:0.14, "square", 0.4); },
+    victory:()=>{ const seq=[523,659,784,1046]; seq.forEach((f,i)=>setTimeout(()=>tone(f,0.4,"sawtooth",0.4),i*150)); },
+    click:()=>{ tone(660,0.05,"square",0.25); }
+  };
+})();
+
+/* ----------------------------------------------------------------------
+   UI — screen routing & widget wiring
+---------------------------------------------------------------------- */
+const UI = (() => {
+  const screens = {};
+  document.querySelectorAll(".screen").forEach(s => screens[s.id.replace("screen-","")] = s);
+  let current = "main";
+  function show(name){
+    if (screens[current]) screens[current].classList.remove("active");
+    current = name;
+    if (screens[name]) screens[name].classList.add("active");
+  }
+  function hideAll(){ Object.values(screens).forEach(s=>s.classList.remove("active")); current=null; }
+  return { show, hideAll, screens, get current(){return current;} };
+})();
+
+/* ----------------------------------------------------------------------
+   PARTICLES — pooled, quality-aware particle system
+---------------------------------------------------------------------- */
+class ParticleSystem{
+  constructor(){ this.pool=[]; this.active=[]; }
+  _get(){ return this.pool.pop() || {}; }
+  emit(x,y,opts={}){
+    const q = Storage.get("quality");
+    if (q==="low") return;                       // skip particles on low
+    let count = opts.count || 10;
+    if (q==="medium") count = Math.ceil(count*0.55);
+    for (let i=0;i<count;i++){
+      const p = this._get();
+      const ang = opts.angle!=null ? opts.angle + (Math.random()-0.5)*(opts.spread||Math.PI*2)
+                                   : Math.random()*Math.PI*2;
+      const spd = (opts.speed||120)*(0.4+Math.random()*0.8);
+      p.x=x; p.y=y;
+      p.vx=Math.cos(ang)*spd; p.vy=Math.sin(ang)*spd;
+      p.life=p.max=(opts.life||0.6)*(0.6+Math.random()*0.6);
+      p.size=(opts.size||3)*(0.6+Math.random()*0.9);
+      p.color=opts.color||"#21e6ff";
+      p.gravity=opts.gravity||0;
+      this.active.push(p);
+    }
+  }
+  update(dt){
+    for (let i=this.active.length-1;i>=0;i--){
+      const p=this.active[i];
+      p.life-=dt;
+      if (p.life<=0){ this.active.splice(i,1); this.pool.push(p); continue; }
+      p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=p.gravity*dt;
+      p.vx*=0.98; p.vy*=0.98;
+    }
+  }
+  draw(ctx){
+    ctx.save(); ctx.globalCompositeOperation="lighter";
+    for (const p of this.active){
+      const a=Math.max(0,p.life/p.max);
+      ctx.globalAlpha=a;
+      ctx.fillStyle=p.color;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size*a,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  clear(){ while(this.active.length) this.pool.push(this.active.pop()); }
+}
+
+/* ----------------------------------------------------------------------
+   GAME — core engine
+---------------------------------------------------------------------- */
+const Game = (() => {
+  // ---- Canvas & virtual coordinate system ----
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  // Virtual playfield (logical units); canvas scales to fit screen.
+  const FW = 600, FH = 1000;          // field width/height (portrait table)
+  let scale = 1, dpr = 1;
+
+  // ---- Entities ----
+  const WALL = 14;                    // wall thickness inset
+  const GOAL_W = 230;                 // goal opening width
+  const puck = { x:FW/2, y:FH/2, vx:0, vy:0, r:18, trail:[] };
+  const p1 = { x:FW/2, y:FH-120, px:FW/2, py:FH-120, vx:0, vy:0, r:38, color:"#21e6ff" }; // bottom (human)
+  const p2 = { x:FW/2, y:120,    px:FW/2, py:120,    vx:0, vy:0, r:38, color:"#ff2bd6" }; // top (AI / P2)
+
+  // ---- State ----
+  let state = "menu";   // menu | countdown | play | paused | goal | victory
+  let mode = "single";  // single | multi
+  let difficulty = "medium";
+  let scores = { p1:0, p2:0 };
+  const WIN_SCORE = 7;
+  let matchStart = 0, matchElapsed = 0;
+  let shake = 0;
+  let lastServe = "p1"; // who concedes serves to the other
+  const particles = new ParticleSystem();
+
+  // ---- AI tuning per difficulty ----
+  const AI = {
+    easy:   { maxSpeed:520,  react:0.28, predict:0.10, accuracy:0.55, aggression:0.45, defendY:0.20 },
+    medium: { maxSpeed:760,  react:0.14, predict:0.32, accuracy:0.78, aggression:0.68, defendY:0.24 },
+    hard:   { maxSpeed:1020, react:0.05, predict:0.55, accuracy:0.94, aggression:0.86, defendY:0.28 }
+  };
+  let aiTarget = { x:FW/2, y:120 };
+  let aiReactTimer = 0;
+
+  // ---- Input ----
+  const pointer = { x:FW/2, y:FH-120, active:false, id:null };
+  const keys = {};
+
+  // ---------- Resize / scaling ----------
+  function resize(){
+    const wrap = document.getElementById("game-wrap");
+    const availW = wrap.clientWidth  - 16;
+    const availH = wrap.clientHeight - (document.getElementById("hud").offsetHeight||70) - 16;
+    const ratio = FW/FH;
+    let w = availW, h = w/ratio;
+    if (h > availH){ h = availH; w = h*ratio; }
+    dpr = Math.min(window.devicePixelRatio||1, Storage.get("quality")==="low"?1:2);
+    canvas.style.width = w+"px";
+    canvas.style.height = h+"px";
+    canvas.width = Math.round(w*dpr);
+    canvas.height = Math.round(h*dpr);
+    scale = (w*dpr)/FW;
+  }
+
+  // Convert a client (screen) coordinate to field coordinates
+  function toField(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX-rect.left)/rect.width * FW;
+    const y = (clientY-rect.top)/rect.height * FH;
+    return { x, y };
+  }
+
+  // ---------- Match / round control ----------
+  function startMatch(m, diff){
+    mode = m; difficulty = diff||Storage.get("difficulty");
+    scores.p1 = 0; scores.p2 = 0;
+    matchStart = performance.now(); matchElapsed = 0;
+    lastServe = "p1";
+    document.getElementById("p1-name").textContent = "P1";
+    document.getElementById("p2-name").textContent = mode==="single" ? "CPU" : "P2";
+    updateScoreUI();
+    document.getElementById("hud").style.display = "flex";
+    document.getElementById("game-wrap").style.display = "flex";
+    UI.hideAll();
+    resize();
+    resetPositions();
+    beginCountdown();
+  }
+
+  function resetPositions(){
+    puck.x=FW/2; puck.y=FH/2; puck.vx=0; puck.vy=0; puck.trail.length=0;
+    p1.x=FW/2; p1.y=FH-120; p1.vx=p1.vy=0; p1.px=p1.x; p1.py=p1.y;
+    p2.x=FW/2; p2.y=120;    p2.vx=p2.vy=0; p2.px=p2.x; p2.py=p2.y;
+    pointer.x=p1.x; pointer.y=p1.y; pointer.active=false;
+  }
+
+  let cdValue = 3, cdTimer = 0;
+  function beginCountdown(){
+    state = "countdown";
+    cdValue = 3; cdTimer = 0;
+    // serve puck toward the player who was last scored on, slight random angle
+    const dir = lastServe==="p1" ? 1 : -1;
+    puck.x=FW/2; puck.y=FH/2; puck.vx=0; puck.vy=0;
+    document.getElementById("countdown").style.display="flex";
+    showCd(cdValue);
+  }
+  function showCd(v){
+    const el = document.getElementById("cd-num");
+    el.textContent = v>0 ? v : "GO";
+    el.classList.remove("cd-anim"); void el.offsetWidth; el.classList.add("cd-anim");
+    Audio.count(v<=0);
+  }
+
+  function scoreGoal(scorer){
+    if (state!=="play") return;
+    scores[scorer]++;
+    Audio.goal();
+    updateScoreUI();
+    shake = Math.min(shake+18, 26);
+    // explosion at the goal
+    const gy = scorer==="p1" ? WALL : FH-WALL;
+    particles.emit(puck.x, gy, {count:60, speed:340, life:0.9, size:5,
+      color: scorer==="p1" ? "#ff2bd6" : "#21e6ff", angle: scorer==="p1"?Math.PI/2:-Math.PI/2, spread:Math.PI});
+    lastServe = scorer==="p1" ? "p2" : "p1";  // loser serves
+    if (scores[scorer] >= WIN_SCORE){ victory(scorer); return; }
+    state = "goal";
+    showToast(scorer==="p1" ? "GOAL!" : (mode==="single"?"CPU SCORES":"P2 SCORES"));
+    setTimeout(()=>{ if(state==="goal"){ resetPositions(); beginCountdown(); } }, 1400);
+  }
+
+  function victory(winner){
+    state = "victory";
+    Audio.victory();
+    document.getElementById("hud").style.display="none";
+    const youWon = (mode==="single" && winner==="p1") || (mode==="multi" && winner==="p1");
+    const nameEl = document.getElementById("win-name");
+    if (mode==="single") nameEl.textContent = winner==="p1" ? "VICTORY!" : "DEFEAT";
+    else nameEl.textContent = (winner==="p1"?"PLAYER 1":"PLAYER 2") + " WINS!";
+    document.getElementById("win-score").textContent = `${scores.p1} — ${scores.p2}`;
+    // persist best record (single-player wins)
+    let bestNote = "";
+    if (mode==="single" && winner==="p1"){
+      const wins = Storage.get("bestWins")+1; Storage.set("bestWins", wins);
+      bestNote = `Total wins vs CPU: ${wins}`;
+    } else if (mode==="single"){
+      bestNote = `Total wins vs CPU: ${Storage.get("bestWins")}`;
+    } else {
+      bestNote = "Local Multiplayer";
+    }
+    document.getElementById("win-best").textContent = bestNote;
+    // celebration confetti loop runs in render via state
+    confettiBurst();
+    UI.show("victory");
+  }
+
+  let confetti = [];
+  function confettiBurst(){
+    confetti = [];
+    for (let i=0;i<120;i++){
+      confetti.push({ x:Math.random()*FW, y:-Math.random()*FH*0.5,
+        vx:(Math.random()-0.5)*120, vy:120+Math.random()*220,
+        size:5+Math.random()*7, color:["#21e6ff","#ff2bd6","#8a5cff","#3dff9e","#ffcf4d"][i%5],
+        rot:Math.random()*Math.PI, vr:(Math.random()-0.5)*8 });
+    }
+  }
+
+  // ---------- UI helpers ----------
+  function updateScoreUI(){
+    // The score-pop animation is triggered by a MutationObserver (see scorePopPatch).
+    document.getElementById("p1-score").textContent=scores.p1;
+    document.getElementById("p2-score").textContent=scores.p2;
+  }
+
+  let toastTimer=0;
+  function showToast(msg){
+    const t=document.getElementById("toast");
+    t.textContent=msg;
+    t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
+  }
+
+  // ---------- Physics ----------
+  const PUCK_MAX = 1400;       // max puck speed (units/s)
+  const PADDLE_MAX = 2400;     // cap paddle inferred velocity for collision energy
+  const FRICTION = 0.62;       // per-second velocity retention factor base
+
+  function clampPaddle(pad, isTop){
+    // keep inside walls
+    const minX = WALL+pad.r, maxX = FW-WALL-pad.r;
+    pad.x = Math.max(minX, Math.min(maxX, pad.x));
+    // center-line constraint
+    if (isTop){
+      const maxY = FH/2 - pad.r - 2;
+      pad.y = Math.max(WALL+pad.r, Math.min(maxY, pad.y));
+    } else {
+      const minY = FH/2 + pad.r + 2;
+      pad.y = Math.min(FH-WALL-pad.r, Math.max(minY, pad.y));
+    }
+  }
+
+  // Resolve collision between puck and a paddle (circle/circle, momentum transfer)
+  function puckPaddle(pad){
+    const dx = puck.x-pad.x, dy = puck.y-pad.y;
+    const dist = Math.hypot(dx,dy);
+    const minD = puck.r+pad.r;
+    if (dist >= minD || dist===0) return false;
+    const nx = dx/dist, ny = dy/dist;
+    // separate puck out of paddle
+    const overlap = minD - dist;
+    puck.x += nx*overlap; puck.y += ny*overlap;
+    // relative velocity along normal
+    const rvx = puck.vx - pad.vx, rvy = puck.vy - pad.vy;
+    const velAlong = rvx*nx + rvy*ny;
+    if (velAlong < 0){
+      const restitution = 1.05;     // slightly springy
+      const j = -(1+restitution)*velAlong;
+      puck.vx += j*nx; puck.vy += j*ny;
+    }
+    // inject paddle momentum (variable force from paddle velocity)
+    const padSpeed = Math.hypot(pad.vx,pad.vy);
+    puck.vx += pad.vx*0.34; puck.vy += pad.vy*0.34;
+    // ensure puck moves away from paddle a little
+    const sp = Math.hypot(puck.vx,puck.vy);
+    if (sp < 180){ puck.vx += nx*220; puck.vy += ny*220; }
+    capPuck();
+    // FX
+    const power = Math.min(1, (Math.hypot(puck.vx,puck.vy))/PUCK_MAX + padSpeed/PADDLE_MAX);
+    Audio.paddle(power);
+    particles.emit(puck.x,puck.y,{count:14,speed:160+power*260,life:0.5,size:3.4,
+      color:pad.color,angle:Math.atan2(ny,nx),spread:Math.PI*0.9});
+    flash = Math.min(1, flash+0.5+power*0.5);
+    if (power>0.5) shake = Math.min(shake+power*10, 22);
+    return true;
+  }
+
+  function capPuck(){
+    const sp=Math.hypot(puck.vx,puck.vy);
+    if (sp>PUCK_MAX){ puck.vx*=PUCK_MAX/sp; puck.vy*=PUCK_MAX/sp; }
+  }
+
+  let flash = 0;
+
+  // Continuous-collision-ish stepping to avoid tunneling at high speed
+  function integratePuck(dt){
+    const sp = Math.hypot(puck.vx,puck.vy);
+    // sub-step so puck never moves more than ~ its radius per step
+    const steps = Math.max(1, Math.ceil(sp*dt/(puck.r*0.8)));
+    const sdt = dt/steps;
+    for (let s=0;s<steps;s++){
+      puck.x += puck.vx*sdt;
+      puck.y += puck.vy*sdt;
+      collideWalls();
+      puckPaddle(p1);
+      puckPaddle(p2);
+    }
+    // air resistance / friction (frame-rate independent)
+    const f = Math.pow(FRICTION, dt);
+    puck.vx*=f; puck.vy*=f;
+    if (Math.abs(puck.vx)<2) puck.vx=0;
+    if (Math.abs(puck.vy)<2) puck.vy=0;
+  }
+
+  function collideWalls(){
+    const left=WALL+puck.r, right=FW-WALL-puck.r, top=WALL+puck.r, bottom=FH-WALL-puck.r;
+    const goalL=(FW-GOAL_W)/2, goalR=(FW+GOAL_W)/2;
+    const inGoalMouth = puck.x>goalL && puck.x<goalR;
+    let bounced=false;
+    // side walls
+    if (puck.x<left){ puck.x=left; puck.vx=Math.abs(puck.vx)*0.98; bounced=true; }
+    else if (puck.x>right){ puck.x=right; puck.vx=-Math.abs(puck.vx)*0.98; bounced=true; }
+    // top wall / top goal (P1 attacks the top goal)
+    if (puck.y<top){
+      if (inGoalMouth){
+        if (puck.y < WALL){ scoreGoal("p1"); return; }   // puck centre crossed the goal line
+        // else: travelling through the open mouth, no bounce
+      } else { puck.y=top; puck.vy=Math.abs(puck.vy)*0.98; bounced=true; }
+    }
+    // bottom wall / bottom goal (P2 attacks the bottom goal)
+    else if (puck.y>bottom){
+      if (inGoalMouth){
+        if (puck.y > FH-WALL){ scoreGoal("p2"); return; }
+      } else { puck.y=bottom; puck.vy=-Math.abs(puck.vy)*0.98; bounced=true; }
+    }
+    if (bounced){
+      Audio.wall();
+      particles.emit(puck.x,puck.y,{count:6,speed:140,life:0.35,size:2.6,color:"#8a5cff"});
+      flash=Math.min(1,flash+0.2);
+    }
+  }
+
+  // ---------- Paddle movement (human) ----------
+  function updateHumanPaddle(pad, dt, kbset, useMouse, isTop){
+    pad.px=pad.x; pad.py=pad.y;
+    let tx=pad.x, ty=pad.y;
+    if (useMouse && pointer.active){
+      tx=pointer.x; ty=pointer.y;
+    } else if (kbset){
+      const spd = 720*dt;
+      let mx=0,my=0;
+      if (keys[kbset.up]) my-=1;
+      if (keys[kbset.down]) my+=1;
+      if (keys[kbset.left]) mx-=1;
+      if (keys[kbset.right]) mx+=1;
+      if (mx||my){ const l=Math.hypot(mx,my); tx+=mx/l*spd; ty+=my/l*spd; }
+    }
+    // smooth follow (prevents jitter, frame-rate independent)
+    const follow = useMouse && pointer.active ? 1-Math.pow(0.001,dt) : 1;
+    pad.x += (tx-pad.x)*follow;
+    pad.y += (ty-pad.y)*follow;
+    clampPaddle(pad,isTop);
+    // inferred velocity from displacement
+    pad.vx=(pad.x-pad.px)/dt; pad.vy=(pad.y-pad.py)/dt;
+    const sp=Math.hypot(pad.vx,pad.vy);
+    if (sp>PADDLE_MAX){ pad.vx*=PADDLE_MAX/sp; pad.vy*=PADDLE_MAX/sp; }
+  }
+
+  // ---------- AI ----------
+  function predictPuckX(targetY){
+    // simulate puck travel to targetY accounting for wall bounces
+    let x=puck.x, y=puck.y, vx=puck.vx, vy=puck.vy;
+    if (Math.abs(vy)<1) return x;
+    const left=WALL+puck.r, right=FW-WALL-puck.r;
+    let guard=0;
+    while (((vy<0 && y>targetY) || (vy>0 && y<targetY)) && guard++<200){
+      const dt=1/120;
+      x+=vx*dt; y+=vy*dt;
+      if (x<left){ x=left; vx=Math.abs(vx); }
+      else if (x>right){ x=right; vx=-Math.abs(vx); }
+      vx*=Math.pow(FRICTION,dt); vy*=Math.pow(FRICTION,dt);
+    }
+    return x;
+  }
+
+  function updateAI(pad, dt){
+    const cfg = AI[difficulty];
+    pad.px=pad.x; pad.py=pad.y;
+    aiReactTimer-=dt;
+    const defendY = WALL+pad.r + (FH/2-WALL-pad.r)*cfg.defendY;
+    const puckOnAISide = puck.y < FH/2;
+    const puckApproaching = puck.vy < -10; // moving toward AI (up)
+
+    if (aiReactTimer<=0){
+      aiReactTimer = cfg.react;
+      let tx, ty;
+      if (puckApproaching || puckOnAISide){
+        // predict interception
+        const interceptY = Math.max(defendY, Math.min(FH/2-pad.r-4,
+          puckOnAISide ? puck.y - pad.r*0.5 : defendY));
+        const blend = cfg.predict;
+        const predX = predictPuckX(interceptY);
+        tx = puck.x*(1-blend) + predX*blend;
+        // aim offset to angle shots toward the goal sides occasionally
+        if (puckOnAISide && puckApproaching===false && puck.y<FH*0.32){
+          const aim = (FW/2) + (Math.random()-0.5)*GOAL_W*0.5;
+          tx += (puck.x - aim)*0.15*cfg.aggression;
+        }
+        ty = puckOnAISide ? puck.y - pad.r - 4 : defendY;
+        // attack: if puck slow & on AI side, lunge to strike toward player goal
+        if (puckOnAISide && Math.hypot(puck.vx,puck.vy)<420){
+          ty = puck.y - pad.r*0.2;
+          const aimX = FW/2 + (Math.random()-0.5)*GOAL_W*0.6;
+          tx = puck.x + (puck.x-aimX)*0.0; // approach straight, push downward
+        }
+      } else {
+        // recover to defensive home position, track puck x loosely
+        tx = FW/2 + (puck.x-FW/2)*0.5;
+        ty = defendY;
+      }
+      // accuracy noise (human-like imperfection)
+      const err = (1-cfg.accuracy);
+      tx += (Math.random()-0.5)*FW*0.18*err;
+      ty += (Math.random()-0.5)*60*err;
+      aiTarget.x=tx; aiTarget.y=ty;
+    }
+
+    // move toward target, respecting max speed (no teleport, no cheating)
+    const dx=aiTarget.x-pad.x, dy=aiTarget.y-pad.y;
+    const d=Math.hypot(dx,dy);
+    const maxStep=cfg.maxSpeed*dt;
+    if (d>0.5){
+      const step=Math.min(d,maxStep);
+      pad.x+=dx/d*step; pad.y+=dy/d*step;
+    }
+    clampPaddle(pad,true);
+    pad.vx=(pad.x-pad.px)/dt; pad.vy=(pad.y-pad.py)/dt;
+    const sp=Math.hypot(pad.vx,pad.vy);
+    if (sp>cfg.maxSpeed*1.2){ const k=cfg.maxSpeed*1.2/sp; pad.vx*=k; pad.vy*=k; }
+  }
+
+  // ---------- Main update ----------
+  function update(dt){
+    const speedScale = Storage.get("speed");
+    if (state==="countdown"){
+      cdTimer+=dt;
+      if (cdTimer>=1){
+        cdTimer=0; cdValue--;
+        if (cdValue>=0) showCd(cdValue);
+        if (cdValue<0){
+          document.getElementById("countdown").style.display="none";
+          // serve toward the player who conceded last (dir: +1 down toward P1, -1 up toward P2)
+          const dir = lastServe==="p1" ? 1 : -1;
+          const serveSpeed = 260*speedScale;
+          puck.vx=(Math.random()-0.5)*180*speedScale;
+          puck.vy=dir*serveSpeed;
+          state="play";
+        }
+      }
+      // still allow paddle movement during countdown
+      movePaddles(dt, speedScale, false);
+    }
+    else if (state==="play"){
+      movePaddles(dt, speedScale, true);
+      // scale puck velocity influence by game speed via dt? keep physics, apply speed to integration
+      integratePuck(dt*speedScale);
+    }
+    else if (state==="goal"){
+      movePaddles(dt, speedScale, false);
+    }
+    // decay effects
+    if (shake>0) shake=Math.max(0, shake-shake*6*dt-0.1);
+    if (flash>0) flash=Math.max(0, flash-flash*5*dt-0.02);
+    particles.update(dt);
+    // puck trail sampling
+    if (state==="play"){
+      puck.trail.push({x:puck.x,y:puck.y});
+      if (puck.trail.length>16) puck.trail.shift();
+    }
+    if (state==="victory"){
+      updateConfetti(dt);
+    }
+    matchElapsed = (state==="play"||state==="goal"||state==="countdown") ? matchElapsed+dt : matchElapsed;
+    updateTimer();
+  }
+
+  function movePaddles(dt, speedScale, allowPuck){
+    if (mode==="single"){
+      updateHumanPaddle(p1, dt, {up:"arrowup",down:"arrowdown",left:"arrowleft",right:"arrowright"}, true, false);
+      updateAI(p2, dt*speedScale);
+    } else {
+      updateHumanPaddle(p1, dt, {up:"arrowup",down:"arrowdown",left:"arrowleft",right:"arrowright"}, true, false);
+      updateHumanPaddle(p2, dt, {up:"w",down:"s",left:"a",right:"d"}, false, true);
+    }
+  }
+
+  let lastTimerSec=-1;
+  function updateTimer(){
+    const s=Math.floor(matchElapsed);
+    if (s===lastTimerSec) return; lastTimerSec=s;
+    const mm=String(Math.floor(s/60)).padStart(2,"0");
+    const ss=String(s%60).padStart(2,"0");
+    document.getElementById("timer").textContent=`${mm}:${ss}`;
+  }
+
+  function updateConfetti(dt){
+    for (const c of confetti){
+      c.x+=c.vx*dt; c.y+=c.vy*dt; c.vy+=200*dt; c.rot+=c.vr*dt;
+      if (c.y>FH+20){ c.y=-20; c.x=Math.random()*FW; c.vy=120+Math.random()*200; }
+    }
+  }
+
+  // ---------- Rendering ----------
+  function render(){
+    ctx.save();
+    ctx.scale(scale,scale);
+    // screen shake
+    let sx=0, sy=0;
+    if (shake>0){ sx=(Math.random()-0.5)*shake; sy=(Math.random()-0.5)*shake; ctx.translate(sx,sy); }
+    ctx.clearRect(-30,-30,FW+60,FH+60);
+    drawTable();
+    drawCenter();
+    drawGoals();
+    drawTrail();
+    drawPuck();
+    drawPaddle(p2);
+    drawPaddle(p1);
+    particles.draw(ctx);
+    if (state==="victory") drawConfetti();
+    // impact flash overlay
+    if (flash>0){
+      ctx.save(); ctx.globalCompositeOperation="lighter";
+      ctx.fillStyle=`rgba(120,180,255,${flash*0.12})`;
+      ctx.fillRect(0,0,FW,FH); ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawTable(){
+    // playfield background gradient
+    const g=ctx.createLinearGradient(0,0,0,FH);
+    g.addColorStop(0,"#0b1126"); g.addColorStop(0.5,"#0a0f22"); g.addColorStop(1,"#0b1126");
+    ctx.fillStyle=g; ctx.fillRect(0,0,FW,FH);
+    // subtle inner grid
+    if (Storage.get("quality")!=="low"){
+      ctx.strokeStyle="rgba(80,120,200,0.06)"; ctx.lineWidth=1;
+      for (let x=WALL;x<FW;x+=48){ ctx.beginPath(); ctx.moveTo(x,WALL); ctx.lineTo(x,FH-WALL); ctx.stroke(); }
+      for (let y=WALL;y<FH;y+=48){ ctx.beginPath(); ctx.moveTo(WALL,y); ctx.lineTo(FW-WALL,y); ctx.stroke(); }
+    }
+    // glowing edges
+    ctx.lineJoin="round";
+    const glow=(color,w)=>{ ctx.strokeStyle=color; ctx.lineWidth=w; ctx.strokeRect(WALL,WALL,FW-WALL*2,FH-WALL*2); };
+    ctx.save();
+    ctx.shadowBlur= Storage.get("quality")==="low"?0:24; ctx.shadowColor="#21e6ff";
+    glow("rgba(33,230,255,0.85)",3);
+    ctx.shadowColor="#ff2bd6";
+    glow("rgba(255,43,214,0.18)",6);
+    ctx.restore();
+  }
+
+  let centerPhase=0;
+  function drawCenter(){
+    centerPhase+=0.02;
+    ctx.save();
+    // animated center line
+    ctx.strokeStyle="rgba(138,92,255,0.5)";
+    ctx.lineWidth=2; ctx.setLineDash([14,12]); ctx.lineDashOffset=-centerPhase*40;
+    ctx.beginPath(); ctx.moveTo(WALL,FH/2); ctx.lineTo(FW-WALL,FH/2); ctx.stroke();
+    ctx.setLineDash([]);
+    // center circle with pulse
+    const pulse=1+Math.sin(centerPhase*2)*0.04;
+    ctx.shadowBlur=Storage.get("quality")==="low"?0:18; ctx.shadowColor="#8a5cff";
+    ctx.strokeStyle="rgba(138,92,255,0.6)"; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(FW/2,FH/2,70*pulse,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(FW/2,FH/2,6,0,Math.PI*2); ctx.fillStyle="rgba(138,92,255,0.8)"; ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGoals(){
+    const goalL=(FW-GOAL_W)/2, goalR=(FW+GOAL_W)/2;
+    ctx.save();
+    ctx.lineWidth=8; ctx.lineCap="round";
+    ctx.shadowBlur=Storage.get("quality")==="low"?0:20;
+    // top goal (P1 attacks here) — cyan
+    ctx.strokeStyle="rgba(33,230,255,0.9)"; ctx.shadowColor="#21e6ff";
+    ctx.beginPath(); ctx.moveTo(goalL,WALL); ctx.lineTo(goalR,WALL); ctx.stroke();
+    // bottom goal — magenta
+    ctx.strokeStyle="rgba(255,43,214,0.9)"; ctx.shadowColor="#ff2bd6";
+    ctx.beginPath(); ctx.moveTo(goalL,FH-WALL); ctx.lineTo(goalR,FH-WALL); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTrail(){
+    if (Storage.get("quality")==="low") return;
+    ctx.save(); ctx.globalCompositeOperation="lighter";
+    for (let i=0;i<puck.trail.length;i++){
+      const t=puck.trail[i]; const a=i/puck.trail.length;
+      ctx.globalAlpha=a*0.4;
+      ctx.fillStyle="#9fe9ff";
+      ctx.beginPath(); ctx.arc(t.x,t.y,puck.r*a*0.9,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawPuck(){
+    ctx.save();
+    // shadow
+    ctx.globalAlpha=0.5; ctx.fillStyle="rgba(0,0,0,0.5)";
+    ctx.beginPath(); ctx.ellipse(puck.x+5,puck.y+8,puck.r,puck.r*0.7,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    // glow
+    ctx.shadowBlur=Storage.get("quality")==="low"?6:28; ctx.shadowColor="#bdf3ff";
+    const g=ctx.createRadialGradient(puck.x-5,puck.y-5,2,puck.x,puck.y,puck.r);
+    g.addColorStop(0,"#ffffff"); g.addColorStop(0.4,"#bdf3ff"); g.addColorStop(1,"#3aa9ff");
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(puck.x,puck.y,puck.r,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle="rgba(255,255,255,0.7)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(puck.x,puck.y,puck.r,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPaddle(pad){
+    ctx.save();
+    // shadow
+    ctx.globalAlpha=0.45; ctx.fillStyle="rgba(0,0,0,0.55)";
+    ctx.beginPath(); ctx.ellipse(pad.x+6,pad.y+10,pad.r,pad.r*0.7,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.shadowBlur=Storage.get("quality")==="low"?6:26; ctx.shadowColor=pad.color;
+    // outer ring
+    const g=ctx.createRadialGradient(pad.x,pad.y,pad.r*0.3,pad.x,pad.y,pad.r);
+    g.addColorStop(0,"#10172e"); g.addColorStop(0.7,pad.color); g.addColorStop(1,pad.color);
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(pad.x,pad.y,pad.r,0,Math.PI*2); ctx.fill();
+    // inner hub
+    ctx.shadowBlur=0;
+    ctx.fillStyle="#0a1024";
+    ctx.beginPath(); ctx.arc(pad.x,pad.y,pad.r*0.55,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=pad.color; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(pad.x,pad.y,pad.r*0.55,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle=pad.color;
+    ctx.beginPath(); ctx.arc(pad.x,pad.y,pad.r*0.16,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawConfetti(){
+    ctx.save();
+    for (const c of confetti){
+      ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.rot);
+      ctx.fillStyle=c.color; ctx.globalAlpha=0.9;
+      ctx.fillRect(-c.size/2,-c.size/2,c.size,c.size*0.6);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // ---------- Game loop (rAF, fixed-timestep accumulator) ----------
+  let lastT=0, acc=0;
+  const STEP=1/120;            // physics fixed step
+  function loop(now){
+    requestAnimationFrame(loop);
+    if (!lastT) lastT=now;
+    let dt=(now-lastT)/1000; lastT=now;
+    if (dt>0.1) dt=0.1;        // clamp huge gaps (tab switch)
+    if (state==="paused"||state==="menu"||state==="victory"){
+      if (state==="victory"){ update(dt); render(); }  // keep confetti animating
+      return;
+    }
+    acc+=dt;
+    let guard=0;
+    while (acc>=STEP && guard++<8){ update(STEP); acc-=STEP; }
+    render();
+  }
+  requestAnimationFrame(loop);
+
+  // ---------- Input handlers ----------
+  function onPointerMove(cx,cy){
+    const f=toField(cx,cy);
+    // constrain pointer target to the human's half so paddle can't be dragged across
+    pointer.x=f.x;
+    pointer.y=Math.max(FH/2+p1.r+2, Math.min(FH-WALL-p1.r, f.y));
+    pointer.active=true;
+  }
+  canvas.addEventListener("mousemove",e=>{ if(mode!=="menu") onPointerMove(e.clientX,e.clientY); });
+  canvas.addEventListener("mousedown",e=>{ Audio.resume(); onPointerMove(e.clientX,e.clientY); });
+  canvas.addEventListener("mouseleave",()=>{ pointer.active=false; });
+
+  canvas.addEventListener("touchstart",e=>{ e.preventDefault(); Audio.resume(); handleTouch(e); },{passive:false});
+  canvas.addEventListener("touchmove",e=>{ e.preventDefault(); handleTouch(e); },{passive:false});
+  canvas.addEventListener("touchend",e=>{ e.preventDefault(); if(e.touches.length===0) pointer.active=false; },{passive:false});
+  function handleTouch(e){
+    // pick the touch on the human's (bottom) half
+    for (const t of e.touches){
+      const f=toField(t.clientX,t.clientY);
+      if (f.y>FH/2 || !pointer.active){ onPointerMove(t.clientX,t.clientY); break; }
+    }
+  }
+
+  window.addEventListener("keydown",e=>{
+    const k=e.key.toLowerCase();
+    keys[k]=true;
+    if (k==="escape"){
+      if (state==="play"||state==="countdown"||state==="goal") pauseGame();
+      else if (state==="paused") resumeGame();
+    }
+    if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k)) e.preventDefault();
+  });
+  window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
+
+  window.addEventListener("resize",()=>{ if(mode!=="menu") resize(); });
+
+  // ---------- Pause / resume ----------
+  function pauseGame(){
+    if (state!=="play"&&state!=="countdown"&&state!=="goal") return;
+    Game._resume=state; state="paused";
+    UI.show("pause");
+  }
+  function resumeGame(){
+    if (state!=="paused") return;
+    state=Game._resume||"play";
+    UI.hideAll();
+    lastT=0;
+  }
+  document.getElementById("pause-btn").addEventListener("click",()=>{ Audio.click(); pauseGame(); });
+
+  // ---------- Public API ----------
+  return {
+    startMatch, resize,
+    pause:pauseGame, resume:resumeGame,
+    restart:()=>{ startMatch(mode,difficulty); },
+    quitToMenu:()=>{
+      state="menu";
+      document.getElementById("hud").style.display="none";
+      document.getElementById("game-wrap").style.display="none";
+      document.getElementById("countdown").style.display="none";
+      particles.clear();
+      UI.show("main");
+    },
+    get state(){return state;},
+    set state(v){state=v;},
+    get mode(){return mode;},
+    _resume:null
+  };
+})();
+
+/* ----------------------------------------------------------------------
+   Wire up menus, settings widgets, persistence
+---------------------------------------------------------------------- */
+(function wireUI(){
+  // generic data-go navigation
+  document.querySelectorAll("[data-go]").forEach(b=>{
+    b.addEventListener("click",()=>{ Audio.click(); UI.show(b.dataset.go); });
+  });
+  // button ripple coordinates
+  document.querySelectorAll(".btn").forEach(b=>{
+    b.addEventListener("mousemove",e=>{
+      const r=b.getBoundingClientRect();
+      b.style.setProperty("--mx",(e.clientX-r.left)+"px");
+      b.style.setProperty("--my",(e.clientY-r.top)+"px");
+    });
+  });
+
+  // Mode selection
+  let pendingMode="single";
+  document.getElementById("mode-single").addEventListener("click",()=>{
+    Audio.click(); pendingMode="single"; Storage.set("mode","single");
+    // preselect last difficulty
+    markDiff(Storage.get("difficulty"));
+    UI.show("diff");
+  });
+  document.getElementById("mode-multi").addEventListener("click",()=>{
+    Audio.click(); pendingMode="multi"; Storage.set("mode","multi");
+    Game.startMatch("multi", Storage.get("difficulty"));
+  });
+
+  // Difficulty selection
+  function markDiff(d){
+    document.querySelectorAll("[data-diff]").forEach(b=>b.classList.toggle("selected",b.dataset.diff===d));
+  }
+  document.querySelectorAll("[data-diff]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      Audio.click();
+      const d=b.dataset.diff;
+      Storage.set("difficulty",d);
+      document.getElementById("set-diff").value=d;
+      Game.startMatch("single", d);
+    });
+  });
+
+  // ----- Settings widgets -----
+  const vol=document.getElementById("set-vol");
+  const sound=document.getElementById("set-sound");
+  const speed=document.getElementById("set-speed");
+  const quality=document.getElementById("set-quality");
+  const diffSel=document.getElementById("set-diff");
+  const fs=document.getElementById("set-fs");
+
+  // initialise from storage
+  vol.value=Math.round(Storage.get("volume")*100);
+  sound.classList.toggle("on",Storage.get("sound"));
+  speed.value=Math.round(Storage.get("speed")*100);
+  quality.value=Storage.get("quality");
+  diffSel.value=Storage.get("difficulty");
+
+  vol.addEventListener("input",()=>{ Storage.set("volume",vol.value/100); Audio.applyVolume(); });
+  vol.addEventListener("change",()=>Audio.click());
+  sound.addEventListener("click",()=>{
+    const on=!Storage.get("sound"); Storage.set("sound",on);
+    sound.classList.toggle("on",on); Audio.applyVolume(); if(on) Audio.click();
+  });
+  speed.addEventListener("input",()=>Storage.set("speed",speed.value/100));
+  quality.addEventListener("change",()=>{ Storage.set("quality",quality.value); Game.resize(); Audio.click(); });
+  diffSel.addEventListener("change",()=>{ Storage.set("difficulty",diffSel.value); Audio.click(); });
+  fs.addEventListener("click",()=>{
+    Audio.click();
+    if (!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); }
+    else { document.exitFullscreen?.(); }
+  });
+  document.addEventListener("fullscreenchange",()=>{ fs.classList.toggle("on",!!document.fullscreenElement); });
+
+  // settings back — return to whatever makes sense
+  document.getElementById("settings-back").addEventListener("click",()=>{
+    Audio.click();
+    if (Game.state==="paused") UI.show("pause");
+    else UI.show("main");
+  });
+
+  // ----- Pause menu -----
+  document.getElementById("pause-resume").addEventListener("click",()=>{ Audio.click(); Game.resume(); });
+  document.getElementById("pause-restart").addEventListener("click",()=>{ Audio.click(); Game.restart(); });
+  document.getElementById("pause-settings").addEventListener("click",()=>{ Audio.click(); UI.show("settings"); });
+  document.getElementById("pause-menu").addEventListener("click",()=>{ Audio.click(); Game.quitToMenu(); });
+
+  // ----- Victory -----
+  document.getElementById("win-again").addEventListener("click",()=>{ Audio.click(); Game.restart(); });
+  document.getElementById("win-menu").addEventListener("click",()=>{ Audio.click(); Game.quitToMenu(); });
+
+  // initial audio unlock on first interaction
+  window.addEventListener("pointerdown",()=>{ Audio.init(); Audio.resume(); },{once:true});
+})();
+
+/* ----------------------------------------------------------------------
+   Animated menu background — drifting neon particles + glow
+---------------------------------------------------------------------- */
+(function bgFx(){
+  const c=document.getElementById("bg-fx"), x=c.getContext("2d");
+  let W,H,parts=[];
+  function size(){
+    W=c.width=innerWidth; H=c.height=innerHeight;
+    const n=Math.min(70, Math.floor(W*H/26000));
+    parts=[];
+    for (let i=0;i<n;i++) parts.push({
+      x:Math.random()*W, y:Math.random()*H,
+      r:1+Math.random()*2.6, s:0.15+Math.random()*0.5,
+      c:["#21e6ff","#ff2bd6","#8a5cff","#3dff9e"][i%4], a:0.2+Math.random()*0.5
+    });
+  }
+  size(); addEventListener("resize",size);
+  function frame(){
+    requestAnimationFrame(frame);
+    x.clearRect(0,0,W,H);
+    x.globalCompositeOperation="lighter";
+    for (const p of parts){
+      p.y-=p.s; if (p.y<-5){ p.y=H+5; p.x=Math.random()*W; }
+      x.globalAlpha=p.a;
+      x.fillStyle=p.c;
+      x.beginPath(); x.arc(p.x,p.y,p.r,0,Math.PI*2); x.fill();
+    }
+    x.globalAlpha=1; x.globalCompositeOperation="source-over";
+  }
+  frame();
+})();
+
+/* ----------------------------------------------------------------------
+   Patch: score pop animation hook (separate from numeric update)
+   We override updateScoreUI's pop behaviour cleanly here.
+---------------------------------------------------------------------- */
+(function scorePopPatch(){
+  let prev={p1:0,p2:0};
+  const a=document.getElementById("p1-score"), b=document.getElementById("p2-score");
+  const obs=new MutationObserver(()=>{
+    const v1=+a.textContent, v2=+b.textContent;
+    if (v1!==prev.p1){ a.classList.remove("score-pop"); void a.offsetWidth; a.classList.add("score-pop"); prev.p1=v1; }
+    if (v2!==prev.p2){ b.classList.remove("score-pop"); void b.offsetWidth; b.classList.add("score-pop"); prev.p2=v2; }
+  });
+  obs.observe(a,{childList:true}); obs.observe(b,{childList:true});
+})();
+</script>
+</body>
+</html>
