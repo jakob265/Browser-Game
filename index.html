@@ -1457,24 +1457,29 @@ const Game = (() => {
     }
   }
 
-  // QOL: if the puck sits nearly still for too long, gently nudge it back into
-  // play so a round can never stall (e.g. dead puck pinned against a wall).
-  let puckIdle = 0;
+  // QOL: free the puck if it isn't actually going anywhere — whether it's dead-slow
+  // OR jittering in place (e.g. pinned in a corner between a paddle and the walls).
+  // We watch net displacement from an anchor rather than instantaneous speed.
+  const stuckAnchor = { x:FW/2, y:FH/2, t:0 };
   function rescueStuckPuck(dt, speedScale){
-    const sp = Math.hypot(puck.vx,puck.vy);
-    if (sp < 35){
-      puckIdle += dt;
-      if (puckIdle > 2.2){
-        // push toward table centre with a little randomness
-        const ang = Math.atan2(FH/2-puck.y, FW/2-puck.x) + (Math.random()-0.5)*0.8;
-        const k = 230*speedScale;
-        puck.vx = Math.cos(ang)*k; puck.vy = Math.sin(ang)*k;
-        puckIdle = 0;
-        Audio.wall();
-        particles.emit(puck.x,puck.y,{count:10,speed:160,life:0.5,size:3,color:"#3dff9e"});
-      }
-    } else {
-      puckIdle = 0;
+    const d = Math.hypot(puck.x-stuckAnchor.x, puck.y-stuckAnchor.y);
+    if (d > 55){                       // puck has travelled somewhere — reset the watch
+      stuckAnchor.x=puck.x; stuckAnchor.y=puck.y; stuckAnchor.t=0;
+      return;
+    }
+    stuckAnchor.t += dt;
+    // free it faster when it's lodged against a wall/corner
+    const nearWall = puck.x<WALL+puck.r+34 || puck.x>FW-WALL-puck.r-34 ||
+                     puck.y<WALL+puck.r+34 || puck.y>FH-WALL-puck.r-34;
+    const limit = nearWall ? 1.3 : 2.4;
+    if (stuckAnchor.t > limit){
+      // push toward table centre with a little randomness
+      const ang = Math.atan2(FH/2-puck.y, FW/2-puck.x) + (Math.random()-0.5)*0.7;
+      const k = 260*speedScale;
+      puck.vx = Math.cos(ang)*k; puck.vy = Math.sin(ang)*k;
+      stuckAnchor.x=puck.x; stuckAnchor.y=puck.y; stuckAnchor.t=0;
+      Audio.wall();
+      particles.emit(puck.x,puck.y,{count:10,speed:160,life:0.5,size:3,color:"#3dff9e"});
     }
   }
 
@@ -1571,17 +1576,34 @@ const Game = (() => {
         const blend = cfg.predict;
         const predX = predictPuckX(interceptY);
         tx = puck.x*(1-blend) + predX*blend;
-        // aim offset to angle shots toward the goal sides occasionally
-        if (puckOnAISide && puckApproaching===false && puck.y<FH*0.32){
-          const aim = (FW/2) + (Math.random()-0.5)*GOAL_W*0.5;
-          tx += (puck.x - aim)*0.15*cfg.aggression;
-        }
-        ty = puckOnAISide ? puck.y - pad.r - 4 : defendY;
-        // attack: if puck slow & on AI side, lunge to strike toward player goal
-        if (puckOnAISide && Math.hypot(puck.vx,puck.vy)<420){
-          ty = puck.y - pad.r*0.2;
-          const aimX = FW/2 + (Math.random()-0.5)*GOAL_W*0.6;
-          tx = puck.x + (puck.x-aimX)*0.0; // approach straight, push downward
+        const minStrikeY = WALL + pad.r + 2;           // closest the paddle can sit to the back wall
+        const slow = Math.hypot(puck.vx,puck.vy) < 420;
+        if (puckOnAISide && slow){
+          // Attack: knock the puck toward the player's goal. To push it DOWN the
+          // paddle must sit ABOVE the puck — never press up into it (that pins it
+          // against the back wall and looks "stuck").
+          const behindY = puck.y - (pad.r + puck.r) + 6;
+          if (behindY >= minStrikeY){
+            tx = puck.x; ty = behindY;                  // line up above, push straight down
+          } else {
+            // puck is pinned high near the back wall: hit it sideways toward open ice
+            const s = (puck.x <= FW/2) ? -1 : 1;        // approach from the wall-side
+            const sideX = puck.x + s*(pad.r + puck.r)*0.85;
+            if (sideX > WALL+pad.r+2 && sideX < FW-WALL-pad.r-2){
+              tx = sideX; ty = puck.y + pad.r*0.25;
+            } else {
+              // genuine corner — back off rather than vibrate against it
+              tx = FW/2 + (puck.x-FW/2)*0.6; ty = defendY;
+            }
+          }
+        } else {
+          // defensive interception: stay above the puck, clamped off the wall
+          ty = puckOnAISide ? Math.max(minStrikeY, puck.y - pad.r - 4) : defendY;
+          // aim offset to angle shots toward the goal sides occasionally
+          if (puckOnAISide && !puckApproaching && puck.y<FH*0.32){
+            const aim = (FW/2) + (Math.random()-0.5)*GOAL_W*0.5;
+            tx += (puck.x - aim)*0.15*cfg.aggression;
+          }
         }
       } else {
         // recover to defensive home position, track puck x loosely
