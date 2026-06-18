@@ -282,6 +282,25 @@ body.cb .score-card.p2 .score-val{color:#ff9e3d;text-shadow:0 0 18px rgba(255,15
 .skill-desc{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px;}
 .skill-lock{font-size:10.5px;color:var(--amber);margin-top:4px;letter-spacing:.4px;}
 .skill-tag{position:absolute;top:8px;right:8px;font-size:9px;letter-spacing:1px;color:var(--green);font-weight:700;}
+.preview-btn{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:10px;font-weight:600;
+  letter-spacing:.5px;color:var(--cyan);background:rgba(33,230,255,.08);border:1px solid rgba(33,230,255,.3);
+  border-radius:999px;padding:3px 10px;cursor:pointer;transition:background .15s,border-color .15s;}
+.preview-btn:hover{background:rgba(33,230,255,.2);border-color:var(--cyan);}
+
+/* Preview modal */
+.modal-backdrop{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+  background:rgba(4,8,20,.8);backdrop-filter:blur(6px);padding:20px;}
+.modal-backdrop.show{display:flex;animation:fadein .18s ease;}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.preview-panel{position:relative;width:min(360px,94vw);text-align:center;}
+.preview-close{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--muted);font-size:18px;
+  cursor:pointer;line-height:1;padding:4px;transition:color .15s;}
+.preview-close:hover{color:var(--text);}
+.preview-title{font-size:18px;font-weight:800;letter-spacing:.5px;color:var(--text);margin-bottom:2px;}
+.preview-sub{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:12px;}
+.preview-canvas{width:100%;max-width:300px;aspect-ratio:13/17;border-radius:14px;background:#070b18;
+  border:1px solid var(--glass-brd);box-shadow:inset 0 0 40px rgba(0,0,0,.5);}
+.preview-tagline{font-size:12px;color:var(--muted);line-height:1.5;margin-top:12px;min-height:18px;}
 
 /* Profile / stats / achievements */
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:6px;}
@@ -373,6 +392,18 @@ body.cb .score-card.p2 .score-val{color:#ff9e3d;text-shadow:0 0 18px rgba(255,15
 <!-- ===================== COUNTDOWN ===================== -->
 <div id="countdown"><div class="cd-num" id="cd-num">3</div></div>
 <div class="toast" id="toast"></div>
+
+<!-- Skill / skin preview modal -->
+<div class="modal-backdrop" id="preview-modal">
+  <div class="panel preview-panel">
+    <button class="preview-close" id="preview-close" aria-label="Close">✕</button>
+    <div class="preview-title" id="preview-title">Preview</div>
+    <div class="preview-sub" id="preview-sub"></div>
+    <canvas class="preview-canvas" id="preview-canvas"></canvas>
+    <div class="preview-tagline" id="preview-tagline"></div>
+    <button class="btn primary small" id="preview-equip" style="margin-top:12px;display:none;">EQUIP</button>
+  </div>
+</div>
 
 <!-- ===================== SCREENS ===================== -->
 
@@ -2472,6 +2503,219 @@ const Game = (() => {
   document.querySelectorAll("[data-go]").forEach(b=>{
     b.addEventListener("click",()=>{ Audio.click(); UI.show(b.dataset.go); });
   });
+
+  /* ------------------------------------------------------------------
+     PREVIEW — a little live "mini-rink" that demonstrates each skill or
+     skin before you equip it. Skins show off their look; abilities play
+     a short scripted demo of what they do.
+  ------------------------------------------------------------------ */
+  const Preview = (() => {
+    const W=260, H=340, WALL=10, GW=92;            // mini-rink logical size
+    const goalL=(W-GW)/2, goalR=(W+GW)/2;
+    const modal=document.getElementById("preview-modal");
+    const cv=document.getElementById("preview-canvas");
+    const pctx=cv.getContext("2d");
+    const titleEl=document.getElementById("preview-title");
+    const subEl=document.getElementById("preview-sub");
+    const tagEl=document.getElementById("preview-tagline");
+    const equipBtn=document.getElementById("preview-equip");
+    let raf=0, last=0, cfg=null, parts=[], onEquip=null;
+    const ARENAS=Progression.ARENAS;
+    const DEF_PUCK=["#ffffff","#bdf3ff","#3aa9ff"];
+    function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+    function hueColor(h){ return `hsl(${h%360},100%,65%)`; }
+
+    // scene state
+    const puck={x:W/2,y:H/2,vx:70,vy:-150,r:11,trail:[]};
+    const pad ={x:W/2,y:H-46,r:30,color:"#21e6ff",baseR:30};
+    function reset(){
+      puck.x=W/2; puck.y=H*0.42; puck.vx=(Math.random()<0.5?-1:1)*70; puck.vy=170; puck.trail.length=0;
+      pad.x=W/2; pad.y=H-46; parts=[];
+    }
+    function emit(x,y,col,n,spd){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2,s=spd*(0.4+Math.random());
+      parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.5,col}); } }
+
+    // ---- per-item configuration: how the demo behaves + what to draw ----
+    function configure(skill){
+      const c={ arena:ARENAS.classic, puckSkin:DEF_PUCK, trail:"#9fe9ff", rainbow:false,
+                padColor:"#21e6ff", padScale:1, hitForce:1, curve:0, launch:1,
+                shield:false, freezeCycle:0, swift:false, ghostBase:false, scenario:"rally" };
+      switch(skill.type){
+        case "paddle": c.padColor=skill.color; break;
+        case "puck":   c.puckSkin=skill.puck; break;
+        case "trail":  if(skill.color==="rainbow") c.rainbow=true; else c.trail=skill.color; break;
+        case "arena":  c.arena = skill.arena || ARENAS[Progression.TIER_ARENA[Progression.tierIndexFor(Storage.get("mmr"))]]; break;
+        case "active":
+        case "passive":
+          if(skill.id==="dash")      c.scenario="dash";
+          else if(skill.id==="powershot"){ c.scenario="powershot"; c.launch=2.4; }
+          else if(skill.id==="shield"){ c.shield=true; }
+          else if(skill.id==="freeze"){ c.freezeCycle=2.6; }
+          else if(skill.id==="bigpaddle"){ c.padScale=1.18; c.ghostBase=true; }
+          else if(skill.id==="swift"){ c.swift=true; }
+          else if(skill.id==="powerhits"){ c.hitForce=1.5; c.scenario="powerhits"; }
+          else if(skill.id==="control"){ c.curve=1; }
+          break;
+      }
+      pad.color=c.padColor; pad.baseR=30; pad.r=30*c.padScale;
+      return c;
+    }
+
+    let freezeT=0, freezeTimer=0, dashT=0, dashTimer=1.2;
+    function tick(dt){
+      // freeze ability demo cycles the puck speed down
+      if(cfg.freezeCycle){ freezeTimer+=dt; if(freezeTimer>=cfg.freezeCycle){ freezeTimer=0; freezeT=1.3; } }
+      if(freezeT>0) freezeT=Math.max(0,freezeT-dt);
+      const moveScale = freezeT>0 ? 0.22 : 1;
+
+      // paddle AI: intercept the puck when it descends into the lower half
+      let tx=W/2, ty=H-46;
+      if(puck.vy>0 && puck.y>H*0.42){ tx=puck.x; ty=Math.min(H-30, Math.max(H*0.6, puck.y+pad.r*0.4)); }
+      // dash demo: snap a burst toward the puck periodically
+      let padSpeed = cfg.swift ? 12 : 7;
+      if(cfg.scenario==="dash"){ dashTimer-=dt; if(dashTimer<=0 && puck.vy>0){ dashT=0.28; dashTimer=2.2; }
+        if(dashT>0){ dashT-=dt; padSpeed=26; tx=puck.x; ty=puck.y+pad.r*0.3; } }
+      const k=1-Math.exp(-dt*padSpeed);
+      pad.x+=(tx-pad.x)*k; pad.y+=(ty-pad.y)*k;
+      pad.x=Math.max(pad.r+WALL,Math.min(W-pad.r-WALL,pad.x));
+      pad.y=Math.max(H*0.5,Math.min(H-WALL-pad.r,pad.y));
+
+      // integrate puck
+      puck.x+=puck.vx*dt*moveScale; puck.y+=puck.vy*dt*moveScale;
+      // walls
+      if(puck.x<WALL+puck.r){ puck.x=WALL+puck.r; puck.vx=Math.abs(puck.vx); }
+      if(puck.x>W-WALL-puck.r){ puck.x=W-WALL-puck.r; puck.vx=-Math.abs(puck.vx); }
+      if(puck.y<WALL+puck.r){ puck.y=WALL+puck.r; puck.vy=Math.abs(puck.vy); emit(puck.x,puck.y,"#ffffff",4,120); }
+      // shield wall across the bottom goal
+      const shieldY=H-WALL-40;
+      if(cfg.shield && puck.vy>0 && puck.y+puck.r>shieldY && puck.y<shieldY+18 && puck.x>goalL-14 && puck.x<goalR+14){
+        puck.y=shieldY-puck.r; puck.vy=-Math.abs(puck.vy)*1.02; emit(puck.x,shieldY,"#21e6ff",8,150);
+      }
+      if(puck.y>H-WALL-puck.r){ puck.y=H-WALL-puck.r; puck.vy=-Math.abs(puck.vy); }
+      // paddle hit
+      const dx=puck.x-pad.x, dy=puck.y-pad.y, dist=Math.hypot(dx,dy), minD=pad.r+puck.r;
+      if(dist<minD && dist>0){
+        const nx=dx/dist, ny=dy/dist; puck.x=pad.x+nx*minD; puck.y=pad.y+ny*minD;
+        let sp=Math.hypot(puck.vx,puck.vy);
+        sp=Math.max(sp, 190)*cfg.hitForce*cfg.launch;
+        puck.vx=nx*sp; puck.vy=-Math.abs(ny*sp)-60;
+        if(cfg.curve) puck.vx += (W/2-puck.x)*1.4;     // control: bend toward centre/goal
+        const burst = cfg.launch>1.5||cfg.hitForce>1.3;
+        emit(puck.x,puck.y, burst?"#ffd84d":pad.color, burst?16:7, burst?260:150);
+      }
+      // friction-ish clamp so it doesn't rocket forever
+      const sp=Math.hypot(puck.vx,puck.vy), MAX=520;
+      if(sp>MAX){ puck.vx*=MAX/sp; puck.vy*=MAX/sp; }
+      // trail
+      puck.trail.push({x:puck.x,y:puck.y}); if(puck.trail.length>14) puck.trail.shift();
+      // particles
+      for(const p of parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt*1.8; }
+      parts=parts.filter(p=>p.life>0);
+    }
+
+    function draw(time){
+      const a=cfg.arena;
+      // background
+      const bg=pctx.createLinearGradient(0,0,0,H);
+      bg.addColorStop(0,a.bg[0]); bg.addColorStop(0.5,a.bg[1]); bg.addColorStop(1,a.bg[2]);
+      pctx.fillStyle=bg; pctx.fillRect(0,0,W,H);
+      // grid
+      pctx.strokeStyle=a.grid; pctx.lineWidth=1;
+      for(let x=WALL;x<=W-WALL;x+=26){ pctx.beginPath(); pctx.moveTo(x,WALL); pctx.lineTo(x,H-WALL); pctx.stroke(); }
+      for(let y=WALL;y<=H-WALL;y+=26){ pctx.beginPath(); pctx.moveTo(WALL,y); pctx.lineTo(W-WALL,y); pctx.stroke(); }
+      // border + center
+      pctx.strokeStyle=a.edge; pctx.lineWidth=2.5; pctx.shadowBlur=12; pctx.shadowColor=a.edge;
+      pctx.strokeRect(WALL,WALL,W-WALL*2,H-WALL*2);
+      pctx.shadowBlur=0; pctx.strokeStyle=hexA(a.accent,0.5); pctx.setLineDash([8,7]);
+      pctx.beginPath(); pctx.moveTo(WALL,H/2); pctx.lineTo(W-WALL,H/2); pctx.stroke(); pctx.setLineDash([]);
+      pctx.strokeStyle=hexA(a.accent,0.6); pctx.beginPath(); pctx.arc(W/2,H/2,34,0,Math.PI*2); pctx.stroke();
+      // goals
+      pctx.lineCap="round"; pctx.lineWidth=4;
+      pctx.strokeStyle=hexA("#21e6ff",0.9); pctx.shadowBlur=10; pctx.shadowColor="#21e6ff";
+      pctx.beginPath(); pctx.moveTo(goalL,WALL); pctx.lineTo(goalR,WALL); pctx.stroke();
+      pctx.strokeStyle=hexA(pad.color,0.9); pctx.shadowColor=pad.color;
+      pctx.beginPath(); pctx.moveTo(goalL,H-WALL); pctx.lineTo(goalR,H-WALL); pctx.stroke();
+      pctx.shadowBlur=0;
+      // shield
+      if(cfg.shield){ const sy=H-WALL-40; pctx.strokeStyle=hexA("#21e6ff",0.5+0.3*Math.sin(time*6)); pctx.lineWidth=6;
+        pctx.shadowBlur=16; pctx.shadowColor="#21e6ff"; pctx.beginPath();
+        pctx.moveTo(goalL-14,sy); pctx.lineTo(goalR+14,sy); pctx.stroke(); pctx.shadowBlur=0; }
+      // trail
+      pctx.globalCompositeOperation="lighter";
+      for(let i=0;i<puck.trail.length;i++){ const t=puck.trail[i], al=(i/puck.trail.length);
+        const col = cfg.rainbow ? hueColor(time*120+i*18) : cfg.trail;
+        pctx.fillStyle=hexA0(col,0.28*al); pctx.beginPath(); pctx.arc(t.x,t.y,puck.r*al*0.9,0,Math.PI*2); pctx.fill(); }
+      pctx.globalCompositeOperation="source-over";
+      // ghost (big-paddle comparison)
+      if(cfg.ghostBase){ pctx.strokeStyle="rgba(255,255,255,.25)"; pctx.lineWidth=1.5;
+        pctx.beginPath(); pctx.arc(pad.x,pad.y,pad.baseR,0,Math.PI*2); pctx.stroke(); }
+      // paddle
+      drawDisc(pad.x,pad.y,pad.r,pad.color);
+      // puck
+      const pg=pctx.createRadialGradient(puck.x,puck.y,1,puck.x,puck.y,puck.r);
+      pg.addColorStop(0,cfg.puckSkin[0]); pg.addColorStop(0.4,cfg.puckSkin[1]); pg.addColorStop(1,cfg.puckSkin[2]);
+      pctx.shadowBlur=18; pctx.shadowColor=cfg.puckSkin[1];
+      pctx.fillStyle=pg; pctx.beginPath(); pctx.arc(puck.x,puck.y,puck.r,0,Math.PI*2); pctx.fill(); pctx.shadowBlur=0;
+      // freeze tint
+      if(freezeT>0){ pctx.fillStyle=hexA("#21e6ff",0.10*Math.min(1,freezeT)); pctx.fillRect(0,0,W,H);
+        pctx.fillStyle="rgba(189,243,255,.9)"; pctx.font="bold 13px system-ui"; pctx.textAlign="center";
+        pctx.fillText("❄ FROZEN", W/2, 26); }
+      // particles
+      pctx.globalCompositeOperation="lighter";
+      for(const p of parts){ pctx.fillStyle=hexA0(p.col,Math.max(0,p.life)); pctx.beginPath();
+        pctx.arc(p.x,p.y,2.4,0,Math.PI*2); pctx.fill(); }
+      pctx.globalCompositeOperation="source-over";
+    }
+    function drawDisc(x,y,r,col){
+      pctx.shadowBlur=18; pctx.shadowColor=col;
+      const g=pctx.createRadialGradient(x,y,r*0.3,x,y,r);
+      g.addColorStop(0,"#10172e"); g.addColorStop(0.7,col); g.addColorStop(1,col);
+      pctx.fillStyle=g; pctx.beginPath(); pctx.arc(x,y,r,0,Math.PI*2); pctx.fill();
+      pctx.shadowBlur=0; pctx.fillStyle="#0a1024"; pctx.beginPath(); pctx.arc(x,y,r*0.55,0,Math.PI*2); pctx.fill();
+      pctx.strokeStyle=col; pctx.lineWidth=2.5; pctx.beginPath(); pctx.arc(x,y,r*0.55,0,Math.PI*2); pctx.stroke();
+    }
+    // colour helper that also accepts hsl()/rgba() strings (not just hex)
+    function hexA0(col,a){ if(col[0]==="#") return hexA(col,a);
+      if(col.startsWith("hsl")) return col.replace("hsl","hsla").replace(")",`,${a})`);
+      if(col.startsWith("rgba")) return col; return col; }
+
+    function frame(now){
+      raf=requestAnimationFrame(frame);
+      if(!last) last=now; let dt=(now-last)/1000; last=now; if(dt>0.05) dt=0.05;
+      const time=now/1000;
+      tick(dt); draw(time);
+    }
+
+    function open(skill, opts){
+      opts=opts||{};
+      cfg=configure(skill); reset();
+      freezeT=0; freezeTimer=0; dashTimer=1.2; dashT=0;
+      titleEl.textContent=skill.name;
+      const TYPE={active:"Active Ability",passive:"Passive Boost",paddle:"Paddle Skin",
+                  puck:"Puck Skin",trail:"Puck Trail",arena:"Arena Skin"};
+      subEl.textContent=TYPE[skill.type]||"Preview";
+      tagEl.textContent = opts.unlocked ? skill.desc : `🔒 ${skill.challenge}`;
+      // equip straight from the preview (only if unlocked, not already equipped)
+      if(opts.unlocked && !opts.equipped && opts.onEquip){
+        onEquip=opts.onEquip; equipBtn.style.display=""; equipBtn.textContent="EQUIP "+skill.name.toUpperCase();
+      } else { onEquip=null; equipBtn.style.display="none"; }
+      // size the backing store to the displayed canvas (crisp on hi-dpi)
+      const dpr=Math.min(2,window.devicePixelRatio||1);
+      const rect=cv.getBoundingClientRect();
+      cv.width=Math.round((rect.width||300)*dpr); cv.height=Math.round(cv.width*(H/W));
+      pctx.setTransform(cv.width/W,0,0,cv.height/H,0,0);
+      modal.classList.add("show");
+      last=0; cancelAnimationFrame(raf); raf=requestAnimationFrame(frame);
+    }
+    function close(){ cancelAnimationFrame(raf); raf=0; modal.classList.remove("show"); }
+
+    equipBtn.addEventListener("click",()=>{ Audio.click(); if(onEquip) onEquip(); close(); });
+    document.getElementById("preview-close").addEventListener("click",()=>{ Audio.click(); close(); });
+    modal.addEventListener("click",e=>{ if(e.target===modal) close(); });
+    window.addEventListener("keydown",e=>{ if(e.key==="Escape" && modal.classList.contains("show")){ e.stopPropagation(); close(); } });
+
+    return { open, close };
+  })();
   // button ripple coordinates
   document.querySelectorAll(".btn").forEach(b=>{
     b.addEventListener("mousemove",e=>{
@@ -2582,7 +2826,7 @@ const Game = (() => {
   const TYPE_LABELS={ active:"Active Ability (pick 1)", passive:"Passive Boosts (pick up to 2)",
                       paddle:"Paddle Skins", puck:"Puck Skins", trail:"Puck Trails", arena:"Arena Skins" };
   function makeCard(opts){
-    // opts: {icon,name,desc,lockText,unlocked,equipped,onClick}
+    // opts: {icon,name,desc,lockText,unlocked,equipped,onClick,preview}
     const card=document.createElement("div");
     card.className="skill-card"+(opts.unlocked?"":" locked")+(opts.equipped?" equipped":"");
     card.innerHTML=`<div class="skill-ico">${opts.icon}</div>
@@ -2592,6 +2836,12 @@ const Game = (() => {
         ${opts.unlocked?"":`<div class="skill-lock">🔒 ${opts.lockText}</div>`}
       </div>
       ${opts.equipped?'<div class="skill-tag">EQUIPPED</div>':""}`;
+    if (opts.preview){
+      const pv=document.createElement("button");
+      pv.className="preview-btn"; pv.type="button"; pv.innerHTML="👁 Preview";
+      pv.addEventListener("click",e=>{ e.stopPropagation(); Audio.click(); opts.preview(); });
+      card.querySelector(".skill-meta").appendChild(pv);
+    }
     if (opts.unlocked && opts.onClick) card.addEventListener("click",opts.onClick);
     return card;
   }
@@ -2605,10 +2855,14 @@ const Game = (() => {
       const grid=document.createElement("div"); grid.className="skill-grid";
       // Arena gets an extra "Auto (Rank)" card that follows your current tier
       if (type==="arena"){
+        const autoSkill={ id:"auto", type:"arena", name:"Auto (Rank)", icon:"⛯",
+          desc:"Arena matches your current rank tier.", challenge:"", arena:null };
         grid.appendChild(makeCard({ icon:"⛯", name:"Auto (Rank)",
           desc:"Arena matches your current rank tier.", unlocked:true,
           equipped: (!lo.arena||lo.arena==="auto"),
-          onClick:()=>{ Audio.click(); Progression.equipCosmetic("arena","auto"); buildLocker(); } }));
+          onClick:()=>{ Audio.click(); Progression.equipCosmetic("arena","auto"); buildLocker(); },
+          preview:()=>Preview.open(autoSkill,{ unlocked:true, equipped:(!lo.arena||lo.arena==="auto"),
+            onEquip:()=>{ Progression.equipCosmetic("arena","auto"); buildLocker(); } }) }));
       }
       Progression.list(type).forEach(s=>{
         const unlocked=Progression.isUnlocked(s.id);
@@ -2616,17 +2870,18 @@ const Game = (() => {
         if (type==="active") equipped = lo.active===s.id;
         else if (type==="passive") equipped = (lo.passives||[]).includes(s.id);
         else equipped = lo[type]===s.id;
+        const equip=()=>{
+          if (type==="active") Progression.equipActive(s.id);
+          else if (type==="passive"){
+            if (!Progression.equipPassive(s.id)) showLockerToast("Max 2 passives — unequip one first");
+          }
+          else Progression.equipCosmetic(type,s.id);
+          buildLocker();
+        };
         grid.appendChild(makeCard({ icon:s.icon, name:s.name, desc:s.desc, lockText:s.challenge,
           unlocked, equipped,
-          onClick:()=>{
-            Audio.click();
-            if (type==="active") Progression.equipActive(s.id);
-            else if (type==="passive"){
-              if (!Progression.equipPassive(s.id)) showLockerToast("Max 2 passives — unequip one first");
-            }
-            else Progression.equipCosmetic(type,s.id);
-            buildLocker();
-          } }));
+          onClick:()=>{ Audio.click(); equip(); },
+          preview:()=>Preview.open(s,{ unlocked, equipped, onEquip:equip }) }));
       });
       group.appendChild(grid); body.appendChild(group);
     });
