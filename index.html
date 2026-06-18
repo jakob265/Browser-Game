@@ -709,24 +709,25 @@ const Progression = (() => {
     const lo=TIERS[i].min, hi=TIERS[i+1].min;
     return Math.max(0,Math.min(1,(mmr-lo)/(hi-lo)));
   }
-  // Ranked AI difficulty scales with the player's tier
-  // Bronze: easy · Silver/Gold: medium · Platinum+: hard
+  // Ranked AI difficulty scales with the player's tier (eased so 'hard' only
+  // shows up at the very top): Bronze/Silver easy · Gold/Platinum medium · Diamond/Master hard
   function aiForTier(i){
-    if (i<=0) return "easy";
-    if (i<=2) return "medium";
+    if (i<=1) return "easy";
+    if (i<=3) return "medium";
     return "hard";
   }
 
-  // ---- ELO update. The AI is treated as an even-rated opponent (the ladder's
-  //      difficulty comes from the AI scaling tougher each tier, which lowers your
-  //      win-rate as you climb). The score margin scales the size of the swing. ----
+  // ---- ELO update. Tuned to be forgiving: wins are worth noticeably more than
+  //      losses cost, so a roughly even win-rate still climbs the ladder. The
+  //      score margin scales the size of the swing. ----
   function eloUpdate(mmr, won, myScore, oppScore){
-    const E = 0.5;                                   // even match
     const K = 32;
     const margin = 1 + Math.min(0.6,(Math.abs(myScore-oppScore)-1)/12);
-    let delta = Math.round(K*margin*((won?1:0)-E));
-    if (won && delta<8) delta=8;                     // always feel a win
-    if (!won && delta>-8) delta=-8;                  // always feel a loss
+    const base = Math.round(K*margin*0.5);           // ~16-25
+    let delta = won ? Math.round(base*1.25)+4        // generous gains
+                    : -Math.round(base*0.7);         // softened losses
+    if (won && delta<12) delta=12;                   // always feel a win
+    if (!won && delta>-6) delta=-6;                  // always feel a loss
     return delta;
   }
 
@@ -1162,7 +1163,8 @@ const Game = (() => {
 
   // ---- Entities ----
   const WALL = 14;                    // wall thickness inset
-  const GOAL_W = 230;                 // goal opening width
+  const GOAL_W = 250;                 // goal opening width (centre-to-centre of posts)
+  const POST_R = 9;                   // goalpost radius (physical bumpers at the goal edges)
   const BASE_PR = 38;                 // base paddle radius
   // per-paddle modifiers: hitForce (momentum injection), restitution, aimAssist (control passive)
   const puck = { x:FW/2, y:FH/2, vx:0, vy:0, r:18, trail:[] };
@@ -1170,6 +1172,13 @@ const Game = (() => {
                hitForce:0.34, restitution:1.05, aimAssist:0 }; // bottom (human)
   const p2 = { x:FW/2, y:120,    px:FW/2, py:120,    vx:0, vy:0, r:BASE_PR, color:"#ff2bd6",
                hitForce:0.34, restitution:1.05, aimAssist:0 }; // top (AI / P2)
+  // Physical goalposts at the edges of each goal mouth. They bump the puck, so the
+  // real scoring zone (the gap between posts) matches what the player sees — a shot
+  // that clips a post bounces instead of mysteriously "not counting".
+  const POSTS = [
+    { x:(FW-GOAL_W)/2, y:WALL },    { x:(FW+GOAL_W)/2, y:WALL },     // top goal
+    { x:(FW-GOAL_W)/2, y:FH-WALL }, { x:(FW+GOAL_W)/2, y:FH-WALL }   // bottom goal
+  ];
 
   // ---- State ----
   let state = "menu";   // menu | countdown | play | paused | goal | victory
@@ -1682,6 +1691,7 @@ const Game = (() => {
     for (let s=0;s<steps;s++){
       puck.x += puck.vx*sdt*moveScale;
       puck.y += puck.vy*sdt*moveScale;
+      collideGoalposts();      // bumpers first, so edge shots deflect cleanly
       collideWalls();
       collideShield();
       puckPaddle(p1);
@@ -1692,6 +1702,23 @@ const Game = (() => {
     puck.vx*=f; puck.vy*=f;
     if (Math.abs(puck.vx)<2) puck.vx=0;
     if (Math.abs(puck.vy)<2) puck.vy=0;
+  }
+
+  // Goalposts: circular bumpers at the goal-mouth edges (circle/circle bounce)
+  function collideGoalposts(){
+    for (const p of POSTS){
+      const dx=puck.x-p.x, dy=puck.y-p.y;
+      const dist=Math.hypot(dx,dy), minD=puck.r+POST_R;
+      if (dist<minD && dist>0){
+        const nx=dx/dist, ny=dy/dist;
+        puck.x+=nx*(minD-dist); puck.y+=ny*(minD-dist);   // separate
+        const vn=puck.vx*nx+puck.vy*ny;
+        if (vn<0){ puck.vx-=1.96*vn*nx; puck.vy-=1.96*vn*ny; }  // reflect (slightly lossy)
+        Audio.wall();
+        flash=Math.min(1,flash+0.2);
+        particles.emit(puck.x,puck.y,{count:5,speed:150,life:0.3,size:2.6,color:"#ffffff"});
+      }
+    }
   }
 
   // Shield ability: a temporary barrier across P1's (bottom) goal mouth
@@ -2117,15 +2144,27 @@ const Game = (() => {
   function drawGoals(){
     const goalL=(FW-GOAL_W)/2, goalR=(FW+GOAL_W)/2;
     const topCol="#21e6ff", botCol=p2.color;   // side identity (botCol honours colourblind)
+    const lowQ=Storage.get("quality")==="low";
     ctx.save();
-    ctx.lineWidth=8; ctx.lineCap="round";
-    ctx.shadowBlur=Storage.get("quality")==="low"?0:20;
-    // top goal (P1 attacks here)
-    ctx.strokeStyle=hexA(topCol,0.9); ctx.shadowColor=topCol;
+    ctx.lineCap="round";
+    // --- goal mouths: the actual scoring gap between the posts ---
+    ctx.lineWidth=6; ctx.shadowBlur=lowQ?0:16;
+    ctx.strokeStyle=hexA(topCol,0.85); ctx.shadowColor=topCol;
     ctx.beginPath(); ctx.moveTo(goalL,WALL); ctx.lineTo(goalR,WALL); ctx.stroke();
-    // bottom goal (P1 defends)
-    ctx.strokeStyle=hexA(botCol,0.9); ctx.shadowColor=botCol;
+    ctx.strokeStyle=hexA(botCol,0.85); ctx.shadowColor=botCol;
     ctx.beginPath(); ctx.moveTo(goalL,FH-WALL); ctx.lineTo(goalR,FH-WALL); ctx.stroke();
+    // --- goalpost bumpers at each mouth edge (these physically deflect the puck) ---
+    const post=(x,y,col)=>{
+      ctx.shadowBlur=lowQ?0:18; ctx.shadowColor=col;
+      const g=ctx.createRadialGradient(x,y,1,x,y,POST_R);
+      g.addColorStop(0,"#ffffff"); g.addColorStop(0.55,col); g.addColorStop(1,hexA(col,0.6));
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(x,y,POST_R,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0; ctx.strokeStyle="rgba(255,255,255,0.85)"; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(x,y,POST_R,0,Math.PI*2); ctx.stroke();
+    };
+    post(goalL,WALL,topCol); post(goalR,WALL,topCol);
+    post(goalL,FH-WALL,botCol); post(goalR,FH-WALL,botCol);
     ctx.restore();
   }
 
